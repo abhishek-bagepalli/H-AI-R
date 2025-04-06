@@ -1,0 +1,39 @@
+Fictional Company Inc.
+Human Resources Department
+Document: Comprehensive Leave Policy
+Effective Date: January 1, 2025
+
+1. Annual Leave (Vacation Leave)
+   - Employees earn annual leave based on tenure:
+     - 0–2 years: 18 days/year
+     - 3–5 years: 22 days/year
+     - 6+ years: 26 days/year
+   - Annual leave must be pre-approved by managers through the internal HR portal at least two weeks prior to the leave start date.
+   - Unused annual leave can carry over up to a maximum of 5 days each year.
+
+2. Sick Leave
+   - Employees receive 10 paid sick days per calendar year.
+   - A medical certificate is required for absences exceeding two consecutive sick days.
+   - Extended illness beyond 10 days will require HR evaluation and potential transition to short-term disability leave.
+
+3. Family and Medical Leave (FMLA Equivalent)
+   - Eligible employees are entitled to up to 12 weeks of unpaid, job-protected leave within a 12-month period for family and medical reasons, including the birth/adoption of a child, serious health conditions, or care of a family member.
+   - During FMLA leave, employee health benefits will remain active.
+
+4. Maternity and Paternity Leave
+   - Maternity Leave: 16 weeks fully paid maternity leave, with up to 4 additional weeks unpaid upon request.
+   - Paternity Leave: 4 weeks fully paid leave to be used anytime within one year of childbirth or adoption.
+
+5. Bereavement Leave
+   - Employees are granted up to 5 paid days leave following the loss of an immediate family member (parent, spouse, child, sibling) and up to 3 days for extended family members.
+
+6. Emergency Leave
+   - Employees may use up to 3 days paid leave annually for unforeseen personal emergencies. Manager notification required as soon as possible.
+
+7. Jury Duty and Civic Leave
+   - Employees summoned for jury duty will receive regular pay during their absence. Proof of summons is required.
+
+8. Military Leave
+   - Employees called to active military service or training will be provided leave in accordance with applicable federal laws, including job reinstatement rights.
+
+All leave requests and supporting documentation must be filed through the company’s secure HR Management System (HRMS). Noncompliance may result in leave being unpaid or disciplinary action.

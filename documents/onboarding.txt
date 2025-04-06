@@ -1,0 +1,31 @@
+Fictional Company Inc.
+Human Resources Department
+Document: Employee Onboarding Process
+Effective Date: January 1, 2025
+
+1. Pre-Employment
+   - HR coordinates background checks, references verification, and onboarding packet delivery electronically at least 1 week before the start date.
+
+2. First Day (Orientation)
+   - New hire orientation session covering:
+     - Company vision, mission, values
+     - Overview of company structure and departments
+     - Distribution of Employee Handbook, company laptop, and login credentials
+   - Initial meet-and-greet with direct manager and team members.
+
+3. First Week
+   - Mandatory compliance training covering workplace ethics, data privacy, anti-harassment, cybersecurity protocols, and emergency procedures.
+   - Technical setup and software tool orientation (email, Slack, project management platforms, VPN).
+
+4. Mentorship Program
+   - Assignment of a dedicated mentor for the first 90 days, with structured weekly check-ins.
+
+5. Training and Integration
+   - Job-specific training modules provided through Learning Management System (LMS).
+   - Scheduled introductions to key stakeholders and cross-departmental meetings.
+
+6. Probation and Reviews
+   - 90-day probationary period with performance evaluations at 30, 60, and 90 days.
+   - HR review at end of probation to discuss permanent employment status, further training requirements, and career growth planning.
+
+All onboarding documentation must be completed through the HR portal by the end of the first employment week.

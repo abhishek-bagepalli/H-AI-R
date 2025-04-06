@@ -1,0 +1,28 @@
+Fictional Company Inc.
+Compliance and IT Departments
+Document: Data Privacy & Protection Policy
+Effective Date: January 1, 2025
+
+1. Purpose
+   - Ensuring compliance with applicable privacy regulations (GDPR, CCPA) and safeguarding sensitive employee and client data.
+
+2. Employee Data Handling
+   - Employee data collected (personal details, payroll, benefits, performance records) will be securely stored and accessed solely for legitimate HR-related purposes.
+
+3. Client and Third-Party Data Handling
+   - All client data must be handled in strict compliance with data privacy laws.
+   - Sharing or disclosure of client data to third parties is strictly prohibited without explicit consent and authorization from the compliance team.
+
+4. Data Security Measures
+   - Mandatory use of secure servers, encrypted email and storage systems, VPN access, and two-factor authentication.
+   - Strict adherence to clean desk policies, secure disposal, and handling of printed documents.
+
+5. Breach Reporting and Response
+   - Employees must immediately report suspected data breaches or cybersecurity incidents to the IT Security Team.
+   - IT Security team will coordinate incident response, client notification, and regulatory reporting within 72 hours of breach detection.
+
+6. Training and Awareness
+   - Employees are required to complete annual cybersecurity and data privacy compliance training.
+   - Ongoing phishing tests and security awareness programs will be conducted regularly.
+
+Non-compliance with this policy may result in disciplinary action, up to and including termination of employment.

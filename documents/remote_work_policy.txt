@@ -1,0 +1,29 @@
+Fictional Company Inc.
+Human Resources Department
+Document: Remote Work Policy and Procedures
+Effective Date: January 1, 2025
+
+1. Eligibility
+   - Remote work arrangements are evaluated based on job role suitability, employee performance, and departmental requirements. All remote work requests require managerial approval.
+
+2. Work Schedule
+   - Remote employees must maintain core working hours of 9:00 AM – 5:00 PM local time, Monday through Friday, unless alternative schedules are approved by management.
+
+3. Communication Standards
+   - Employees must remain accessible via Slack, corporate email, and video conferencing tools (Zoom/Google Meet) during designated work hours.
+   - Remote employees must attend all required virtual team meetings and periodic in-office events if requested.
+
+4. Equipment and Infrastructure
+   - Company-provided equipment (laptop, peripherals, VPN access) must be used strictly for work purposes.
+   - Employees must ensure reliable high-speed internet connectivity. Internet expenses may qualify for reimbursement up to $50/month.
+
+5. Data Security and Confidentiality
+   - Employees are required to comply fully with company cybersecurity guidelines, including the mandatory use of VPNs, multi-factor authentication, and password management best practices.
+
+6. Performance and Monitoring
+   - Performance metrics and objectives will remain consistent with in-office standards. Managers will conduct regular check-ins, evaluations, and productivity reviews.
+
+7. Travel and Office Attendance
+   - Remote employees may occasionally be required to travel to headquarters or client sites for training, meetings, or critical project engagements. Advanced notice will be provided whenever possible.
+
+Violation of this policy may result in revocation of remote work privileges and/or disciplinary action.
