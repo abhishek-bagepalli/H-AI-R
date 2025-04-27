@@ -1,0 +1,33 @@
+{
+  "leave_request": {
+    "greeting": "Hi {employee_name},",
+    "acknowledgement": "Thank you for submitting your leave request for {leave_dates}.",
+    "decision": "Your request for {number_of_days} days of casual leave has been {approved/denied} based on our leave policy.",
+    "policy_reminder": "As per our HR policy, employees are eligible for up to 3 casual leave days per calendar year.",
+    "instructions": "Please ensure your responsibilities are appropriately handed over before your leave.",
+    "closing": "If you have any questions or need further assistance, feel free to reach out.\n\nRegards,\nHR Department"
+  },
+  "job_inquiry": {
+    "greeting": "Hello {applicant_name},",
+    "acknowledgement": "Thank you for your interest in career opportunities at {company_name}.",
+    "info": "Currently, we have openings for the following roles: {list_of_open_roles}.",
+    "next_steps": "We encourage you to apply via our Careers Portal at {careers_portal_link}.",
+    "instructions": "After submitting your application, our Talent Acquisition team will review it and get back to you shortly.",
+    "closing": "We appreciate your enthusiasm and wish you the best in your job search.\n\nBest regards,\nHR Team"
+  },
+  "onboarding": {
+    "greeting": "Hi {new_employee_name},",
+    "welcome": "Welcome to {company_name}! We are excited to have you onboard.",
+    "instructions": "Please complete the onboarding documents provided and submit them by {submission_deadline}.",
+    "next_steps": "You will also receive an invite for the orientation session scheduled for {orientation_date}.",
+    "support": "If you have any questions or need help, please contact {hr_contact_name} at {hr_contact_email}.",
+    "closing": "Looking forward to a great journey together!\n\nWarm regards,\nHR Department"
+  },
+  "escalation": {
+    "greeting": "Hi {employee_name},",
+    "acknowledgement": "Thank you for reaching out.",
+    "info": "Your query requires further review by our HR leadership team.",
+    "next_steps": "We have escalated your request and you will hear back from us shortly.",
+    "closing": "We appreciate your patience.\n\nRegards,\nHR Department"
+  }
+}

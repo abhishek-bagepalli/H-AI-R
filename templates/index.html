@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Manage Response Templates</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <div class="container">
+    <h1>HR Response Templates Manager</h1>
+
+    <h2>Add New Category</h2>
+    <form action="/add" method="post" class="form-inline">
+      <input type="text" name="category" placeholder="New category name" required>
+      <button type="submit">Add Category</button>
+    </form>
+
+    <hr>
+
+    {% for category, fields in templates.items() %}
+      <div class="category-block">
+        <h2>{{ category.replace("_", " ").title() }}</h2>
+        <form action="/update/{{ category }}" method="post">
+          {% for field, value in fields.items() %}
+            <label>{{ field }}:</label><br>
+            <textarea name="{{ field }}" rows="2" cols="80">{{ value }}</textarea><br><br>
+          {% endfor %}
+          <button type="submit">Update</button>
+        </form>
+        <form action="/delete/{{ category }}" method="post" class="delete-form">
+          <button type="submit" class="delete-button">Delete Category</button>
+        </form>
+      </div>
+      <hr>
+    {% endfor %}
+  </div>
+</body>
+</html>
