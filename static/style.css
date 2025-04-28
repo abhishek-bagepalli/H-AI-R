@@ -2,12 +2,13 @@ body {
     font-family: Arial, sans-serif;
     background: #f8f9fa;
     padding: 20px;
+    color : black;
+    overflow-y: scroll; /* Always show vertical scrollbar */
   }
   
   .container {
     max-width: 900px;
     margin: auto;
-    background: white;
     padding: 30px;
     border-radius: 10px;
     box-shadow: 0px 0px 10px rgba(0,0,0,0.1);
@@ -68,5 +69,44 @@ body {
   .form-inline button {
     width: 25%;
     display: inline-block;
+  }
+  
+  .category-block {
+    margin-bottom: 15px;
+    border: 1px solid #ccc;
+    border-radius: 8px;
+    background: white;
+    overflow: hidden;
+  }
+  
+  .category-header {
+    font-size: 20px;
+    font-weight: bold;
+    padding: 10px;
+    cursor: pointer;
+    background-color: #f9f9f9;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  
+  .category-header:hover {
+    background-color: #eee;
+  }
+  
+  .category-content {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.5s ease, padding 0.5s ease;
+    padding: 0 10px;
+  }
+  
+  .category-block.open .category-content {
+    max-height: 1000px; /* big enough to handle form */
+    padding: 10px;
+  }
+  
+  .category-block .arrow {
+    font-size: 14px;
   }
   

@@ -18,21 +18,37 @@
     <hr>
 
     {% for category, fields in templates.items() %}
-      <div class="category-block">
-        <h2>{{ category.replace("_", " ").title() }}</h2>
-        <form action="/update/{{ category }}" method="post">
-          {% for field, value in fields.items() %}
-            <label>{{ field }}:</label><br>
-            <textarea name="{{ field }}" rows="2" cols="80">{{ value }}</textarea><br><br>
-          {% endfor %}
-          <button type="submit">Update</button>
-        </form>
-        <form action="/delete/{{ category }}" method="post" class="delete-form">
-          <button type="submit" class="delete-button">Delete Category</button>
-        </form>
-      </div>
-      <hr>
-    {% endfor %}
+  <div class="category-block">
+    <div class="category-header" onclick="toggleCategory(this)">
+      {{ category.replace("_", " ").title() }}
+      <span class="arrow">▼</span>
+    </div>
+    <div class="category-content">
+      <form action="/update/{{ category }}" method="post">
+        {% for field, value in fields.items() %}
+          <label>{{ field }}:</label><br>
+          <textarea name="{{ field }}" rows="2" cols="80">{{ value }}</textarea><br><br>
+        {% endfor %}
+        <button type="submit">Update</button>
+      </form>
+    </div>
+  </div>
+{% endfor %}
   </div>
 </body>
 </html>
+<script>
+  function toggleCategory(header) {
+    const block = header.parentElement;
+    block.classList.toggle('open');
+  
+    // Toggle arrow direction
+    const arrow = header.querySelector('.arrow');
+    if (block.classList.contains('open')) {
+      arrow.textContent = "▲";
+    } else {
+      arrow.textContent = "▼";
+    }
+  }
+  </script>
+  
