@@ -1,2 +1,4 @@
 .env
 firebase_key.json
+__pycache__
+gcloud

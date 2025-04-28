@@ -1,9 +1,18 @@
 import firebase_admin
 from firebase_admin import credentials, firestore
+import os
+import json
 
-# Initialize Firebase
-cred = credentials.Certificate("firebase_key.json")
-firebase_admin.initialize_app(cred)
+# Initialize Firebase App
+firebase_app = None
+if os.getenv('FIREBASE_CONFIG'):
+    firebase_config_json = json.loads(os.getenv('FIREBASE_CONFIG'))
+    cred = credentials.Certificate(firebase_config_json)
+    firebase_app = firebase_admin.initialize_app(cred)
+else:
+    # Local development fallback
+    cred = credentials.Certificate('firebase_key.json')
+    firebase_app = firebase_admin.initialize_app(cred)
 
-# Get Firestore client
-db = firestore.client()
+# Initialize Firestore
+db = firestore.client(app=firebase_app)

@@ -1,0 +1,44 @@
+# Ignore Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# Ignore virtual environments
+env/
+.env
+venv/
+.venv/
+ENV/
+ENV2/
+
+# Ignore Git repo
+.git/
+.gitignore
+
+# Ignore temporary files
+*.log
+*.bak
+*.swp
+
+# Ignore OS files
+.DS_Store
+Thumbs.db
+
+# Ignore Jupyter notebooks (if any)
+*.ipynb_checkpoints/
+
+# Ignore local env
+.env
+.env.*
+
+# Ignore firebase_key.json if you're using environment variables
+firebase_key.json
+
+# Node modules (if you accidentally have)
+node_modules/
+
+# Ignore any backup files
+*.zip
+*.tar.gz
+*.tar
+*.rar
