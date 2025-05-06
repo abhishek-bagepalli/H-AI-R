@@ -32,7 +32,7 @@ db_dir = "db/"
 persistent_directory = os.path.join(db_dir, "chroma_db_hr_docs")
 
 # Initialize the LLM
-model = ChatOpenAI(model="gpt-4o")
+model = ChatOpenAI(model="gpt-3.5-turbo")
 
 # Vector store initialization
 def initialize_vectorstore():
@@ -45,7 +45,7 @@ def initialize_vectorstore():
     documents = loader.load()
 
     # Split and embed
-    text_splitter = CharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
+    text_splitter = CharacterTextSplitter(chunk_size=1000, chunk_overlap=0)
     texts = text_splitter.split_documents(documents)
 
     embedding = OpenAIEmbeddings(model="text-embedding-3-small")
@@ -62,11 +62,11 @@ def initialize_vectorstore():
 
 # Initialize vector database
 vectorstore = initialize_vectorstore()
-retriever = vectorstore.as_retriever(search_type="similarity", search_kwargs={"k": 3})
+retriever = vectorstore.as_retriever(search_type="mmr", search_kwargs={"k": 3,"lambda_mult": 0.5})
 
 # Define Tools for the Agent
 
-@tool
+
 def classify_email(email_text: str, history: str = "") -> str:
     """
     Classify an email as one of: Leave Request, Job Inquiry, Onboarding, or Escalate.
@@ -90,7 +90,7 @@ def classify_email(email_text: str, history: str = "") -> str:
     
     return result
 
-@tool
+
 def retrieve_relevant_documents(query: str) -> List[str]:
     """
     Retrieve relevant documents from the knowledge base based on the query.
@@ -102,7 +102,7 @@ def retrieve_relevant_documents(query: str) -> List[str]:
     docs = retriever.invoke(query)
     return [doc.page_content for doc in docs]
 
-@tool
+
 def get_thread_history(thread_id: str) -> str:
     """
     Retrieve the email thread history for a given thread ID.
@@ -114,7 +114,7 @@ def get_thread_history(thread_id: str) -> str:
     from database import get_email_thread_history
     return get_email_thread_history(thread_id)
 
-@tool
+
 def get_thread_state(thread_id: str) -> Dict[str, str]:
     """
     Get the current state of an email thread.
@@ -127,7 +127,7 @@ def get_thread_state(thread_id: str) -> Dict[str, str]:
     doc_id, state = get_latest_thread_state(thread_id)
     return {"doc_id": doc_id, "state": state}
 
-@tool
+
 def generate_response(email_text: str, category: str, context_docs: List[str], history: str = "") -> str:
     """
     Generate a response based on the email category, context documents, and history.
@@ -171,18 +171,22 @@ def generate_response(email_text: str, category: str, context_docs: List[str], h
     }
 
     rag_prompt = ChatPromptTemplate.from_messages([
-        ("system", 
-         "You are an HR executive writing professional, helpful email replies.\n\n"
-         "Use the following JSON structure to frame your reply:\n\n{response_template}\n\n"
-         "But the response should be as human like as possible even for thread replies."
-         "Fill in the placeholders with information from the email and previous conversation.\n"
-         "Only generate the main email body, no subject line or headers."
-        ),
-        ("human", 
-         "Documentation:\n{context}\n\n"
-         "Previous conversation:\n{history}\n\n"
-         "Current email:\n{email}")
-    ])
+    ("system", 
+     "You are an HR executive writing professional, helpful email replies.\n\n"
+     "You will be given a suggested response template as reference. You do not have to fill all the fields in he structured response template. DO NOT return your response as JSON or a dictionary.\n\n"
+     "Instead, use the template as a guide and write a complete, polished email in natural, professional language.\n\n"
+     "Incorporate any relevant information from the documentation, previous conversation history, and current email.\n"
+     "The final output should sound human and fluid — as if written by a person, not a bot.\n"
+     "Only generate the main email body. Do NOT include headers like 'Subject:' or 'From:'."
+     "You may ask the candidate for more information if needed.\n\n"
+    ),
+    ("human", 
+     "Documentation:\n{context}\n\n"
+     "Previous conversation:\n{history}\n\n"
+     "Current email:\n{email}\n\n"
+     "Suggested Response Template (for guidance only):\n{response_template}"
+     )
+])
 
     context = "\n\n".join(context_docs)
     chain = rag_prompt | model | StrOutputParser()
@@ -193,10 +197,15 @@ def generate_response(email_text: str, category: str, context_docs: List[str], h
         "history": history,
         "response_template": filled_template
     })
+
+    # Combine dict sections into a full email response
+    if isinstance(result, dict):
+        result = "\n\n".join(value for value in result.values() if value)
+
     
     return result
 
-@tool
+
 def determine_next_state(current_state: str, email_text: str, response_text: str) -> str:
     """
     Determine the next state of the conversation based on the current state, email, and response.
@@ -237,7 +246,7 @@ def determine_next_state(current_state: str, email_text: str, response_text: str
     return result
 
 
-@tool
+
 def store_email_with_context(context: Dict[str, Any]) -> Dict[str, str]:
     """
     Wrapper tool to store email in database with correct context.
@@ -267,8 +276,8 @@ def store_email_with_context(context: Dict[str, Any]) -> Dict[str, str]:
     return {"doc_id": doc_id, "thread_id": stored_thread_id}
 
 
-@tool
-def store_email_in_database(email_data: Dict[str, Any], response: str, classification: str, state: str, thread_id: str) -> Dict[str, str]:
+
+def store_email_in_database(email_data: Dict[str, Any], response: str, classification: str, state: str, thread_id: str, reply_status:bool) -> Dict[str, str]:
     """
     Store email and response in the database.
     Args:
@@ -282,11 +291,11 @@ def store_email_in_database(email_data: Dict[str, Any], response: str, classific
     """
     from database import store_email_result
     doc_id, stored_thread_id = store_email_result(
-        email_data, response, classification, state=state, thread_id=thread_id
+        email_data, response, classification, state=state, thread_id=thread_id, reply_status=reply_status
     )
     return {"doc_id": doc_id, "thread_id": stored_thread_id}
 
-@tool
+
 def update_thread_state(doc_id: str, new_state: str) -> bool:
     """
     Update the state of an email thread.
@@ -300,7 +309,7 @@ def update_thread_state(doc_id: str, new_state: str) -> bool:
     update_email_state(doc_id, new_state)
     return True
 
-@tool
+
 def store_escalation(email_data: Dict[str, Any]) -> bool:
     """
     Store an escalated email for admin review.
@@ -313,7 +322,7 @@ def store_escalation(email_data: Dict[str, Any]) -> bool:
     store_admin_escalation(email_data)
     return True
 
-@tool
+
 def send_email_reply(to_email: str, subject: str, body: str, message_id: str, thread_id: str) -> bool:
     """
     Send an email reply.
@@ -356,7 +365,7 @@ def send_email_reply(to_email: str, subject: str, body: str, message_id: str, th
         print(f"Error sending email: {e}")
         return False
 
-@tool
+
 def normalize_message_id(msg_id: str) -> str:
     """
     Normalize message IDs by removing angle brackets and whitespace.
@@ -367,7 +376,7 @@ def normalize_message_id(msg_id: str) -> str:
     """
     return msg_id.strip().replace("<", "").replace(">", "") if msg_id else ""
 
-@tool
+
 def determine_thread_id(message_data: Dict[str, Any]) -> Dict[str, str]:
     """
     Determine the correct thread_id for an email.
@@ -386,6 +395,44 @@ def determine_thread_id(message_data: Dict[str, Any]) -> Dict[str, str]:
     message_id = safe_get_and_normalize("message_id")
     in_reply_to = safe_get_and_normalize("in_reply_to")
     references = safe_get_and_normalize("references")
+
+    # Try to find the thread in our database
+    if in_reply_to:
+        ref_doc_query = firestore_db.collection("email_history").where("message_id", "==", in_reply_to).limit(1).stream()
+        for doc in ref_doc_query:
+            thread_id = doc.to_dict().get("thread_id", in_reply_to)
+            return {"message_id": message_id, "thread_id": thread_id}
+
+    if references:
+        ref_ids = [normalize_message_id(ref.strip()) for ref in references.split()]
+        for ref_id in ref_ids:
+            ref_doc_query = firestore_db.collection("email_history").where("message_id", "==", ref_id).limit(1).stream()
+            for doc in ref_doc_query:
+                thread_id = doc.to_dict().get("thread_id", ref_id)
+                return {"message_id": message_id, "thread_id": thread_id}
+
+    # New thread if nothing found
+    return {"message_id": message_id, "thread_id": message_id}
+
+
+def determine_thread_id2(message_id,in_reply_to, references):
+    """
+    Determine the correct thread_id for an email.
+    Args:
+        message_data: Dictionary containing message_id, in_reply_to, and references
+    Returns:
+        Dictionary with message_id and thread_id
+    """
+    # # SAFE GETTER
+    # def safe_get_and_normalize(field):
+    #     value = message_data.get(field)
+    #     if value is None:
+    #         value = ""
+    #     return normalize_message_id(value)
+
+    # message_id = safe_get_and_normalize("message_id")
+    # in_reply_to = safe_get_and_normalize("in_reply_to")
+    # references = safe_get_and_normalize("references")
 
     # Try to find the thread in our database
     if in_reply_to:

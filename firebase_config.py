@@ -11,7 +11,7 @@ if os.getenv('FIREBASE_CONFIG'):
     firebase_app = firebase_admin.initialize_app(cred)
 else:
     # Local development fallback
-    cred = credentials.Certificate('firebase_key.json')
+    cred = credentials.Certificate('hair-firebase.json')
     firebase_app = firebase_admin.initialize_app(cred)
 
 # Initialize Firestore

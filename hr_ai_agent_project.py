@@ -110,8 +110,6 @@ def process_email(email_data: Dict[str, Any]):
     })
 
 
-
-
 # Main execution function
 def main():
     print("Checking inbox...")

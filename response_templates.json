@@ -1,11 +1,11 @@
 {
   "leave_request": {
     "greeting": "Hi {employee_name},",
-    "acknowledgement": "Thank you for submitting your leave request for {leave_dates}.",
+    "acknowledgement": "Thank you for submitting your leave requests for {leave_dates}.",
     "decision": "Your request for {number_of_days} days of casual leave has been {approved/denied} based on our leave policy.",
     "policy_reminder": "As per our HR policy, employees are eligible for up to 3 casual leave days per calendar year.",
-    "instructions": "Please ensure your responsibilities are appropriately handed over before your leave.",
-    "closing": "If you have any questions or need further assistance, feel free to reach out.\n\nRegards,\nHR Department"
+    "instructions": "Please ensure YOUR responsibilities are appropriately handed over before your leave.",
+    "closing": "If you have any questions or need further assistance, feel free to reach out.\r\n\r\nRegards,\r\nHR Department"
   },
   "job_inquiry": {
     "greeting": "Hello {applicant_name},",
