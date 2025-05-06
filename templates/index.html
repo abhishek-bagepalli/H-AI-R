@@ -1,47 +1,31 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="utf-8">
   <title>Manage Response Templates</title>
   <link rel="stylesheet" href="/static/style.css">
 </head>
+
 <body>
+  {% include '_navbar.html' %}
+
   <div class="container">
-    <h1>HR Response Templates Manager</h1>
-
-    <h2>Add New Category</h2>
-    <form action="/add" method="post" class="form-inline">
-      <input type="text" name="category" placeholder="New category name" required>
-      <button type="submit">Add Category</button>
-    </form>
-
-    <hr>
-
-    {% for category, fields in templates.items() %}
-  <div class="category-block">
-    <div class="category-header" onclick="toggleCategory(this)">
-      {{ category.replace("_", " ").title() }}
-      <span class="arrow">▼</span>
+    <div class="project-name">
+      <span>H</span><span>(ai)</span><span>R</span>
     </div>
-    <div class="category-content">
-      <form action="/update/{{ category }}" method="post">
-        {% for field, value in fields.items() %}
-          <label>{{ field }}:</label><br>
-          <textarea name="{{ field }}" rows="2" cols="80">{{ value }}</textarea><br><br>
-        {% endfor %}
-        <button type="submit">Update</button>
-      </form>
-    </div>
+    <div class="tagline">Your AI-Powered HR Email Assistant</div>
+    
   </div>
-{% endfor %}
-  </div>
+
 </body>
+
 </html>
 <script>
   function toggleCategory(header) {
     const block = header.parentElement;
     block.classList.toggle('open');
-  
+
     // Toggle arrow direction
     const arrow = header.querySelector('.arrow');
     if (block.classList.contains('open')) {
@@ -50,5 +34,89 @@
       arrow.textContent = "▼";
     }
   }
-  </script>
-  
+</script>
+<script>
+  // Auto-hide flash messages after 4 seconds
+  setTimeout(() => {
+    document.querySelectorAll('.flash').forEach(el => {
+      el.style.display = 'none';
+    });
+  }, 4000);
+</script>
+
+<style>
+  /* body {
+    margin: 0;
+    padding: 0;
+    font-family: "Segoe UI", sans-serif;
+    background: linear-gradient(120deg, #f3f4f6, #ffffff);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    overflow: hidden;
+  } */
+
+  .container {
+    text-align: center;
+    animation: fadeIn 1.5s ease;
+    margin-top: 20vh;
+  }
+
+  .project-name {
+    font-size: 60px;
+    font-weight: bold;
+    color: #2c3e50;
+    letter-spacing: 2px;
+  }
+
+  .project-name span {
+    display: inline-block;
+    opacity: 0;
+    transform: translateY(20px);
+    animation: riseIn 1s forwards;
+  }
+
+  .project-name span:nth-child(1) { animation-delay: 0s; }
+  .project-name span:nth-child(2) { animation-delay: 0.4s; }
+  .project-name span:nth-child(3) { animation-delay: 0.8s; }
+
+  .tagline {
+    font-size: 20px;
+    color: #555;
+    margin-top: 10px;
+    animation: fadeIn 2s ease 1s forwards;
+    opacity: 0;
+  }
+
+  .cta-button {
+    margin-top: 30px;
+    padding: 12px 30px;
+    font-size: 16px;
+    background-color: #4f46e5;
+    color: white;
+    border: none;
+    border-radius: 25px;
+    cursor: pointer;
+    transition: background-color 0.3s;
+  }
+
+  .cta-button:hover {
+    background-color: #4338ca;
+  }
+
+  @keyframes riseIn {
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+</style>
+</head>
+
+</html>

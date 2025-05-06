@@ -1,0 +1,166 @@
+<!-- templates/search.html -->
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8">
+  <title>Search Emails</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+
+<body>
+  {% include '_navbar.html' %}
+
+  <div class="search-page-container">
+
+    <!-- Search Form Section -->
+    <div class="search-form-section">
+      <h2>🔍 Search Emails</h2>
+
+
+
+
+      <form method="GET" action="/search" class="search-form">
+
+        <div class="search-and-filters">
+
+          <div class="search">
+            <input type="text" name="query" placeholder="Search..." value="{{ query }}" class="search-input">
+          </div>
+
+          <div class="filters">
+            <div class="filter-group {% if selected_classification %}active-filter-category{% endif %}">
+              <span class="filter-svg-icon" aria-hidden="true">
+                {% if selected_classification %}
+                <!-- Filled icon -->
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+                  <path d="M3 4h18l-7 8v6l-4 2v-8L3 4z" />
+                </svg>
+                {% else %}
+                <!-- Hollow icon -->
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M3 4h18l-7 8v6l-4 2v-8L3 4z" />
+                </svg>
+                {% endif %}
+              </span>
+              <select name="classification" class="filter-dropdown ">
+                <option value="">Category</option>
+                {% for cat in templates %}
+                <option value="{{ cat }}" {% if selected_classification==cat %}selected{% endif %}>
+                  {{ cat.replace("_", " ").title() }}
+                </option>
+                {% endfor %}
+              </select>
+            </div>
+
+            <div class="filter-group {% if selected_status %}active-filter-status{% endif %}">
+              <span class="filter-svg-icon" aria-hidden="true">
+                {% if selected_status %}
+                <!-- Filled icon -->
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+                  <path d="M3 4h18l-7 8v6l-4 2v-8L3 4z" />
+                </svg>
+                {% else %}
+                <!-- Hollow icon -->
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M3 4h18l-7 8v6l-4 2v-8L3 4z" />
+                </svg>
+                {% endif %}
+              </span>
+              <select name="status" class="filter-dropdown ">
+                <option value="">Status</option>
+                {% for state in ["new", "in_progress", "resolved", "escalated"] %}
+                <option value="{{ state }}" {% if selected_status==state %}selected{% endif %}>
+                  {{ state.replace("_", " ").title() }}
+                </option>
+                {% endfor %}
+              </select>
+            </div>
+          </div>
+        </div>
+        <div class="filter-buttons">
+          <button type="submit" class="btn-primary">Search</button>
+          <button type="submit" class="btn-primary btn-clear-all"><a href="/search">Clear Filters</a></button>
+
+
+        </div>
+      </form>
+    </div>
+
+    <!-- Results Section -->
+    {% if results %}
+    <div class="results-section">
+      <h3>{{ results|length }} result(s) found</h3>
+
+      {% for email in results %}
+      <div class="email-card">
+        <form action="/update_email_fields" method="post" class="email-form">
+          <input type="hidden" name="doc_id" value="{{ email.objectID or '' }}">
+
+          <div class="field-row"><strong>Sender:</strong> {{ email.sender }}</div>
+          <div class="field-row"><strong>Subject:</strong> {{ email.subject }}</div>
+          <div class="field-row"><strong>Body:</strong>
+            <div class="email-body">{{ email.body }}</div>
+          </div>
+
+          <div class="field-row">
+            <label>Category:</label>
+            <select name="classification">
+              {% for cat in templates %}
+              <option value="{{ cat }}" {% if email.classification==cat %}selected{% endif %}>
+                {{ cat.replace("_", " ").title() }}
+              </option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="field-row">
+            <label>Status:</label>
+            <select name="status">
+              {% for state in ["new", "in_progress", "resolved", "escalated"] %}
+              <option value="{{ state }}" {% if email.status==state %}selected{% endif %}>
+                {{ state.replace("_", " ").title() }}
+              </option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="field-row">
+            <button type="submit" class="btn-primary">Update</button>
+          </div>
+
+          
+        </form>
+
+        <!-- NEW: Response box and send reply -->
+        <form action="/send_reply" method="post" class="reply-form">
+          <input type="hidden" name="to_email" value="{{ email.sender }}">
+          <input type="hidden" name="subject" value="{{ email.subject }}">
+          <input type="hidden" name="thread_id" value="{{ email.objectID }}">
+          <textarea name="reply_body" rows="4" placeholder="Type your custom reply here..." required></textarea>
+          <button type="submit" class="btn-primary">Send Reply</button>
+        </form>
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+  </div>
+</body>
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}
+    <div class="flash-messages">
+      {% for category, message in messages %}
+        <div class="flash flash-{{ category }}">
+          <span>{{ message }}</span>
+          <button class="close-btn" onclick="this.parentElement.style.display='none';">&times;</button>
+        </div>
+      {% endfor %}
+    </div>
+  {% endif %}
+{% endwith %}
+
+
+
+
+</html>

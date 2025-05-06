@@ -1,0 +1,9 @@
+<!-- templates/_navbar.html -->
+<nav class="navbar">
+  <ul>
+    <li><a href="/home" {% if request.path=='/' %}class="active" {% endif %}>Home</a></li>
+    <li><a href="/search" {% if request.path=='/search' %}class="active" {% endif %}>Search Emails</a></li>
+    <li><a href="/templates" {% if request.path=='/templates' %}class="active" {% endif %}>Manage Templates</a></li>
+    <li><a href="/contact" {% if request.path=='/contact' %}class="active" {% endif %}>Contact Us</a></li>
+  </ul>
+</nav>

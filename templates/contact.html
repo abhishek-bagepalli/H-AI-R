@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8">
+  <title>Manage Response Templates</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+
+<body>
+  {% include '_navbar.html' %}
+  <h1>Welcome to HAIR</h1>
+
+</body>
+
+</html>
+<script>
+  function toggleCategory(header) {
+    const block = header.parentElement;
+    block.classList.toggle('open');
+
+    // Toggle arrow direction
+    const arrow = header.querySelector('.arrow');
+    if (block.classList.contains('open')) {
+      arrow.textContent = "▲";
+    } else {
+      arrow.textContent = "▼";
+    }
+  }
+</script>
+<script>
+  // Auto-hide flash messages after 4 seconds
+  setTimeout(() => {
+    document.querySelectorAll('.flash').forEach(el => {
+      el.style.display = 'none';
+    });
+  }, 4000);
+</script>

@@ -1,0 +1,57 @@
+<!-- templates/templates.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Manage Templates</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  {% include '_navbar.html' %}
+
+  <div class="response-templates-manager-container">
+    <h1>Categories and Templates</h1>
+
+    <form action="/add" method="post" style="margin-bottom: 20px;">
+      <div class="category-input-and-button">
+        <div class="category-input">
+          <input type="text" name="category" placeholder="New category name" required class="search-input">
+        </div>
+        <div class="add-category-button">
+          <button type="submit" class="btn-primary">Add Category</button>
+        </div>
+      </div>
+      
+      
+    </form>
+
+    {% for category, fields in templates.items() %}
+    <div class="category-block">
+      <div class="category-header" onclick="toggleCategory(this)">
+        {{ category.replace("_", " ").title() }}
+        <span class="arrow">▼</span>
+      </div>
+      <div class="category-content">
+        <form action="/update/{{ category }}" method="post">
+          {% for field, value in fields.items() %}
+          <label>{{ field }}:</label><br>
+          <textarea name="{{ field }}" class="category-textarea">{{ value }}</textarea><br><br>
+          {% endfor %}
+          <button type="submit" class="btn-primary">Update Category</button>
+        </form>
+        <form action="/delete/{{ category }}" method="post" onsubmit="return confirm('Are you sure?');">
+          <button type="submit" style="margin-top: 1vh;" class="btn-primary btn-clear-all">Delete Category</button>
+        </form>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</body>
+<script>
+  function toggleCategory(header) {
+    const block = header.parentElement;
+    block.classList.toggle('open');
+    const arrow = header.querySelector('.arrow');
+    arrow.textContent = block.classList.contains('open') ? "▲" : "▼";
+  }
+</script>
