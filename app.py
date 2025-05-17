@@ -104,7 +104,7 @@ def search_page():
 @app.route("/templates", methods=["GET"])
 def template_manager():
     templates = load_templates()
-    return render_template("templates.html", templates=templates)
+    return render_template("template_manager.html", templates=templates)
 
 
 @app.route('/add', methods=['POST'])
@@ -167,7 +167,7 @@ def update_template(category):
         for key in templates[category].keys():
             templates[category][key] = request.form.get(key, "")
         save_templates(templates)
-    return redirect(url_for('index'))
+    return redirect(url_for('template_manager'))
 
 @app.route('/delete/<category>', methods=['POST'])
 def delete_category(category):
@@ -175,7 +175,7 @@ def delete_category(category):
     if category in templates:
         del templates[category]
         save_templates(templates)
-    return redirect(url_for('index'))
+    return redirect(url_for('template_manager'))
 
 @app.route("/send_reply", methods=["POST"])
 def send_reply():

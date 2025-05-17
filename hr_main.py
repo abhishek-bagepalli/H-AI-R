@@ -16,7 +16,7 @@ def main():
     persistent_directory = os.path.join(db_dir, "chroma_db_hr_docs")
 
     # Initialize the LLM
-    model = ChatOpenAI(model="gpt-4o")
+    model = ChatOpenAI(model="gpt-3.5-turbo")
 
     try:
         emails = fetch_emails()

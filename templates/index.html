@@ -5,16 +5,45 @@
   <meta charset="utf-8">
   <title>Manage Response Templates</title>
   <link rel="stylesheet" href="/static/style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Lato:ital,wght@0,100;0,300;0,400;0,700;0,900;1,100;1,300;1,400;1,700;1,900&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
 </head>
 
 <body>
   {% include '_navbar.html' %}
-
   <div class="container">
-    <div class="project-name">
-      <span>H</span><span>(ai)</span><span>R</span>
+    <div class="animation">
+      <div class="project-name">
+        <span>H</span><span>(ai)</span><span>R</span>
+      </div>
+      <div class="tagline">Your AI-Powered HR Email Assistant</div>
     </div>
-    <div class="tagline">Your AI-Powered HR Email Assistant</div>
+    
+
+    <!-- ✅ NEW: About Section -->
+  <!-- <div class="about-section">
+    <h3>What is H(ai)R?</h3>
+    <p>
+      H(ai)R is an intelligent assistant that classifies HR emails, retrieves relevant information from your company database, and drafts automated responses — saving your HR team time and effort.
+    </p>
+  </div> -->
+
+  <!-- ✅ NEW: Features Section -->
+  <!-- <div class="features-section">
+    <h3>Key Features</h3>
+    <ul>
+      <li>📥 Automatically classify incoming emails</li>
+      <li>📚 Retrieve info using Retrieval-Augmented Generation (RAG)</li>
+      <li>✉️ Generate accurate responses with AI</li>
+      <li>📊 Maintain message state and history</li>
+      <li>🧩 Editable templates and categories</li>
+    </ul>
+  </div> -->
     
   </div>
 
@@ -58,9 +87,19 @@
   } */
 
   .container {
+    /* border: 2px solid red; */
     text-align: center;
     animation: fadeIn 1.5s ease;
-    margin-top: 20vh;
+    
+  }
+
+  .animation{
+    /* border: 2px solid red; */
+    height: 80vh;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
   }
 
   .project-name {
@@ -68,6 +107,7 @@
     font-weight: bold;
     color: #2c3e50;
     letter-spacing: 2px;
+    
   }
 
   .project-name span {
@@ -84,7 +124,7 @@
   .tagline {
     font-size: 20px;
     color: #555;
-    margin-top: 10px;
+    margin-top: 5vh;
     animation: fadeIn 2s ease 1s forwards;
     opacity: 0;
   }

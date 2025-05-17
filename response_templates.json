@@ -29,5 +29,12 @@
     "info": "Your query requires further review by our HR leadership team.",
     "next_steps": "We have escalated your request and you will hear back from us shortly.",
     "closing": "We appreciate your patience.\n\nRegards,\nHR Department"
+  },
+  "general": {
+    "greeting": "",
+    "acknowledgement": "",
+    "info": "",
+    "next_steps": "",
+    "closing": ""
   }
 }

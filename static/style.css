@@ -6,6 +6,8 @@ body {
   overflow-y: scroll;  /* Always show vertical scrollbar */
   /* opacity: 0; */
   transition: all 0.3s ease-in-out;
+  /* background-image: url("bg.jpg") ; */
+
 }
 
 body {
@@ -232,6 +234,10 @@ hr {
   margin-bottom: 30px;
   display: flex;
   justify-content: center;
+  
+  font-family: "Inter", sans-serif;
+  letter-spacing: 0.3vh;
+  font-weight: 100;
 }
 
 .navbar ul {
@@ -479,4 +485,37 @@ hr {
 .add-category-button{
   /* border: 2px solid green; */
   /* width: 20%; */
+}
+.about-section, .features-section {
+  margin: 40px auto 20px;
+  max-width: 600px;
+  text-align: left;
+}
+
+.about-section{
+  margin-top: 20vh;
+}
+
+.about-section h3,
+.features-section h3 {
+  color: #2c3e50;
+  margin-bottom: 10px;
+}
+
+.about-section p {
+  color: #444;
+  line-height: 1.6;
+}
+
+.features-section ul {
+  list-style: none;
+  padding-left: 0;
+  font-size: 16px;
+  color: #333;
+}
+
+.features-section li {
+  margin-bottom: 10px;
+  padding-left: 1.2em;
+  text-indent: -1.2em;
 }

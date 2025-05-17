@@ -1,19 +1,41 @@
+<!-- templates/contact.html -->
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
-  <meta charset="utf-8">
-  <title>Manage Response Templates</title>
+  <meta charset="UTF-8">
+  <title>Contact Us</title>
   <link rel="stylesheet" href="/static/style.css">
 </head>
-
 <body>
   {% include '_navbar.html' %}
-  <h1>Welcome to HAIR</h1>
 
+  <div class="contact-container">
+    <h1>About Us!</h1>
+    
+
+    <div class="team-members" style="text-align: center; margin: 10vh auto;">
+      <div class="member">
+        <h2>Abhishek Bagepalli</h2>
+        <p><strong>Email:</strong> <a href="mailto:bagepalliabhishek@gmail.com">bagepalliabhishek@gmail.com</a></p>
+        <p><strong>LinkedIn:</strong> <a href="https://www.linkedin.com/in/abhishek-bagepalli/" target="_blank">Abhishek's LinkedIn</a></p>
+        <p><strong>GitHub:</strong> <a href="https://github.com/krithikaa26/hr-ai-agent/tree/abhishek" target="_blank">Abhishek's Github</a></p>
+      </div>
+
+      <div class="member">
+        <h2>Krithiga Rajan Sangeetha Rajan</h2>
+        <p><strong>Email:</strong> <a href="mailto:ksangeet@purdue.edu">ksangeet@purdue.edu</a></p>
+        <p><strong>LinkedIn:</strong> <a href="https://www.linkedin.com/in/krithiga-rajan/" target="_blank">Krithi's Linkedin</a></p>
+        <p><strong>GitHub:</strong> <a href="https://github.com/krithikaa26/hr-ai-agent/tree/abhishek" target="_blank">Krithi's Github</a></p>
+      </div>
+    </div>
+    <p style="text-align: center;">We're two passionate developers who built this AI-powered HR Email Assistant. Whether you're here to collaborate, provide feedback, or just connect — we're all ears.</p>
+    <div class="footer-message" style="text-align: center;">
+      <p>💡 Got an idea or suggestion? Don’t hesitate to reach out. We’re building this to make HR communication smarter — and we’d love your input.</p>
+    </div>
+  </div>
 </body>
-
 </html>
+
 <script>
   function toggleCategory(header) {
     const block = header.parentElement;
