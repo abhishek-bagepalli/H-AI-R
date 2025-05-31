@@ -104,7 +104,7 @@ def search_page():
 @app.route("/templates", methods=["GET"])
 def template_manager():
     templates = load_templates()
-    return render_template("template_manager.html", templates=templates)
+    return render_template("templates.html", templates=templates)
 
 
 @app.route('/add', methods=['POST'])

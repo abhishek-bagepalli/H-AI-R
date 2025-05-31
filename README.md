@@ -1,6 +1,28 @@
-# hr-ai-agent
+# HR AI Agent
 
-An AI-powered HR email response agent for automating and managing HR email workflows, built with Flask, LangChain, Firebase, and Algolia. It features stateful thread management, customizable response templates, admin-in-the-loop learning, and a modern web UI.
+An intelligent HR email management system that revolutionizes how organizations handle employee communications. Built with cutting-edge AI technology, this system automates and streamlines the entire HR email workflow, from initial receipt to response generation and follow-up management.
+
+## Overview
+
+The HR AI Agent is a sophisticated email management solution that combines the power of Large Language Models (LLMs) with modern web technologies to create an efficient, scalable, and intelligent HR communication system. It's designed to handle various types of HR inquiries, from leave requests to job applications, while maintaining a personal touch through customizable response templates.
+
+### Key Capabilities
+
+- 🤖 **Intelligent Processing**: Automatically classifies and prioritizes incoming HR emails using advanced AI
+- 📧 **Smart Response Generation**: Creates contextually appropriate responses using customizable templates
+- 🔄 **Thread Management**: Maintains conversation history and tracks the status of each communication
+- 📚 **Knowledge Integration**: Leverages HR policy documents to provide accurate, policy-compliant responses
+- 👥 **Human Oversight**: Enables HR professionals to review, modify, and escalate responses when needed
+- 🔍 **Advanced Search**: Provides powerful search and filtering capabilities across all communications
+- 📱 **Modern Interface**: Offers an intuitive, responsive web interface for easy management
+
+### Technical Excellence
+
+Built with a robust tech stack including Flask, LangChain, Firebase, and Algolia, this system ensures:
+- Scalable performance for handling large volumes of emails
+- Secure storage and retrieval of sensitive HR communications
+- Real-time search capabilities across the entire email history
+- Easy deployment and maintenance through containerization
 
 ---
 
