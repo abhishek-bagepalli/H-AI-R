@@ -1,18 +1,31 @@
 import os
 import json
 from flask import Flask, render_template, request, redirect, url_for, flash
+from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 from dotenv import load_dotenv
 from apscheduler.schedulers.background import BackgroundScheduler
 from algoliasearch.search.client import SearchClientSync
 from firebase_config import db
 from hr_main import main as process_inbox
 from hr_tools import send_email_reply
+from auth import User
 load_dotenv()
 
 # Flask app initialization
 app = Flask(__name__)
-app.secret_key = "qwertypeepee"
+app.secret_key = os.getenv("SECRET_KEY", "qwertypeepee")
 TEMPLATES_FILE = 'response_templates.json'
+
+# Flask-Login setup
+login_manager = LoginManager()
+login_manager.init_app(app)
+login_manager.login_view = 'login'
+login_manager.login_message = 'Please log in to access this page.'
+login_manager.login_message_category = 'info'
+
+@login_manager.user_loader
+def load_user(user_id):
+    return User.get(user_id)
 
 # Algolia configuration
 ALGOLIA_APP_ID = os.getenv("ALGOLIA_APP_ID")
@@ -35,26 +48,22 @@ def save_templates(data):
 
 @app.route("/", methods=["GET"])
 def index():
-
-    return render_template(
-        "index.html",
-    )
+    if not current_user.is_authenticated:
+        return redirect(url_for('login'))
+    return render_template("index.html")
 
 @app.route("/home", methods=["GET"])
+@login_required
 def home():
-
-    return render_template(
-        "index.html",
-    )
+    return render_template("index.html")
 
 @app.route("/contact", methods=["GET"])
+@login_required
 def contact():
-
-    return render_template(
-        "contact.html",
-    )
+    return render_template("contact.html")
 
 @app.route("/search", methods=["GET"])
+@login_required
 def search_page():
     print('here')
     query = request.args.get("query", "").strip()
@@ -102,12 +111,13 @@ def search_page():
                            selected_status=status_filter)
 
 @app.route("/templates", methods=["GET"])
+@login_required
 def template_manager():
     templates = load_templates()
     return render_template("templates.html", templates=templates)
 
-
 @app.route('/add', methods=['POST'])
+@login_required
 def add_category():
     category = request.form['category'].strip().lower().replace(" ", "_")
     templates = load_templates()
@@ -123,6 +133,7 @@ def add_category():
     return redirect(url_for('index'))
 
 @app.route("/update_email_fields", methods=["POST"])
+@login_required
 def update_email_fields():
     doc_id = request.form.get("doc_id", "").strip()
     new_status = request.form.get("status")
@@ -147,7 +158,6 @@ def update_email_fields():
         #     "classification": new_classification
         # })
 
-
         print(f"✅ Email fields updated: {doc_id}")
         flash("✅ Email fields updated successfully!", "success")
 
@@ -158,9 +168,8 @@ def update_email_fields():
                         classification=request.form.get("classification", ""),
                         status=request.form.get("status", "")))
 
-
-
 @app.route('/update/<category>', methods=['POST'])
+@login_required
 def update_template(category):
     templates = load_templates()
     if category in templates:
@@ -170,6 +179,7 @@ def update_template(category):
     return redirect(url_for('template_manager'))
 
 @app.route('/delete/<category>', methods=['POST'])
+@login_required
 def delete_category(category):
     templates = load_templates()
     if category in templates:
@@ -178,6 +188,7 @@ def delete_category(category):
     return redirect(url_for('template_manager'))
 
 @app.route("/send_reply", methods=["POST"])
+@login_required
 def send_reply():
     print('here in send reply')
 
@@ -208,6 +219,86 @@ def send_reply():
         flash("Error sending reply.", "error")
 
     return redirect(url_for("search_page", query=request.args.get("query", "")))
+
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    if current_user.is_authenticated:
+        return redirect(url_for('home'))
+        
+    if request.method == "POST":
+        email = request.form.get("email")
+        password = request.form.get("password")
+        
+        user = User.get_by_email(email)
+        if user and user.check_password(password):
+            login_user(user)
+            next_page = request.args.get('next')
+            return redirect(next_page or url_for('home'))
+        else:
+            flash("Invalid email or password", "danger")
+            
+    return render_template("login.html")
+
+@app.route("/signup", methods=["GET", "POST"])
+def signup():
+    if current_user.is_authenticated:
+        return redirect(url_for('home'))
+        
+    if request.method == "POST":
+        email = request.form.get("email")
+        password = request.form.get("password")
+        confirm_password = request.form.get("confirm_password")
+        
+        if password != confirm_password:
+            flash("Passwords do not match", "danger")
+            return render_template("signup.html")
+            
+        if User.get_by_email(email):
+            flash("Email already registered", "danger")
+            return render_template("signup.html")
+            
+        user = User(None, email, None)
+        user.set_password(password)
+        user.save()
+        
+        login_user(user)
+        flash("Account created successfully!", "success")
+        return redirect(url_for('home'))
+        
+    return render_template("signup.html")
+
+@app.route("/logout")
+@login_required
+def logout():
+    logout_user()
+    return redirect(url_for('login'))
+
+@app.route('/email-config', methods=['GET', 'POST'])
+@login_required
+def email_config():
+    if request.method == 'POST':
+        config_type = request.form.get('config_type')
+        if config_type not in ['incoming', 'outgoing']:
+            flash('Invalid configuration type', 'error')
+            return redirect(url_for('email_config'))
+            
+        config_data = {
+            'email': request.form.get('email'),
+            'password': request.form.get('password'),
+            'server': request.form.get('server'),
+            'port': request.form.get('port'),
+            'use_ssl': request.form.get('use_ssl') == 'true'
+        }
+        
+        try:
+            current_user.update_email_config(config_type, config_data)
+            flash(f'{config_type.capitalize()} email configuration updated successfully', 'success')
+        except Exception as e:
+            flash(f'Error updating email configuration: {str(e)}', 'error')
+            
+        return redirect(url_for('email_config'))
+        
+    return render_template('email_config.html')
 
 # Scheduler to process inbox every 5 minutes
 scheduler = BackgroundScheduler()

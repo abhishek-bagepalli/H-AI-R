@@ -1,35 +1,37 @@
 <!-- templates/contact.html -->
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <title>Contact Us</title>
-  <link rel="stylesheet" href="/static/style.css">
-</head>
-<body>
-  {% include '_navbar.html' %}
+{% extends "index.html" %}
 
-  <div class="contact-container">
-    <h1>About Us!</h1>
-    
+{% block content %}
+<div class="container mt-5">
+    <h1 class="text-center mb-5">About Me!</h1>
 
-    <div class="team-members" style="text-align: center; margin: 10vh auto;">
-      <div class="member">
-        <h2>Abhishek Bagepalli</h2>
-        <p><strong>Email:</strong> <a href="mailto:bagepalliabhishek@gmail.com">bagepalliabhishek@gmail.com</a></p>
-        <p><strong>LinkedIn:</strong> <a href="https://www.linkedin.com/in/abhishek-bagepalli/" target="_blank" rel="noopener">Abhishek's LinkedIn</a></p>
-        <p><strong>GitHub:</strong> <a href="https://github.com/krithikaa26/hr-ai-agent/tree/abhishek" target="_blank" rel="noopener">Abhishek's Github</a></p>
-      </div>
-
-      
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card shadow-sm">
+                <div class="card-body text-center">
+                    <h2 class="card-title mb-4">Abhishek Bagepalli</h2>
+                    <p class="mb-2">
+                        <strong>Email:</strong> 
+                        <a href="mailto:bagepalliabhishek@gmail.com" class="text-decoration-none">bagepalliabhishek@gmail.com</a>
+                    </p>
+                    <p class="mb-2">
+                        <strong>LinkedIn:</strong> 
+                        <a href="https://www.linkedin.com/in/abhishek-bagepalli/" target="_blank" rel="noopener" class="text-decoration-none">Abhishek's LinkedIn</a>
+                    </p>
+                    <p class="mb-4">
+                        <strong>GitHub:</strong> 
+                        <a href="https://github.com/krithikaa26/hr-ai-agent/tree/abhishek" target="_blank" rel="noopener" class="text-decoration-none">Abhishek's Github</a>
+                    </p>
+                </div>
+            </div>
+        </div>
     </div>
-    <!-- <p style="text-align: center;">We're two passionate developers who built this AI-powered HR Email Assistant. Whether you're here to collaborate, provide feedback, or just connect — we're all ears.</p> -->
-    <div class="footer-message" style="text-align: center;">
-      <p>💡 Got an idea or suggestion? Don't hesitate to reach out. I'm building this to make HR communication smarter — and I'd love your input.</p>
+
+    <div class="text-center mt-5">
+        <p class="lead">💡 Got an idea or suggestion? Don't hesitate to reach out. I'm building this to make HR communication smarter — and I'd love your input.</p>
     </div>
-  </div>
-</body>
-</html>
+</div>
+{% endblock %}
 
 <script>
   function toggleCategory(header) {

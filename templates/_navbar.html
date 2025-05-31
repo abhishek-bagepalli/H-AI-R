@@ -3,6 +3,15 @@
     <li><a href="/home" {% if request.path=='/' %}class="active" {% endif %}>Home</a></li>
     <li><a href="/search" {% if request.path=='/search' %}class="active" {% endif %}>Search Emails</a></li>
     <li><a href="/templates" {% if request.path=='/templates' %}class="active" {% endif %}>Manage Templates</a></li>
-    <li><a href="/contact" {% if request.path=='/contact' %}class="active" {% endif %}>About Us</a></li>
+    <li><a href="/contact" {% if request.path=='/contact' %}class="active" {% endif %}>About Me</a></li>
+  </ul>
+  <ul class="auth-links">
+    {% if current_user.is_authenticated %}
+      <li><span class="user-email">{{ current_user.email }}</span></li>
+      <li><a href="{{ url_for('logout') }}">Logout</a></li>
+    {% else %}
+      <li><a href="{{ url_for('login') }}">Login</a></li>
+      <li><a href="{{ url_for('signup') }}">Sign Up</a></li>
+    {% endif %}
   </ul>
 </nav>
