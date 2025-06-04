@@ -1,0 +1,21 @@
+
+Onboarding Process Overview:
+
+1. Pre-Joining Formalities:
+   - Submit signed offer letter and background check documents.
+   - Upload documents to the onboarding portal.
+
+2. First Day Checklist:
+   - Welcome kit and ID card will be issued.
+   - Introduction meeting with manager and HR.
+   - Account credentials for Slack, Email, and Confluence provided.
+
+3. Tools and Access:
+   - Access to Jira, GitHub, and internal tools provided by IT.
+   - Escalate access issues to it-support@company.com.
+
+4. Orientation Program:
+   - Two-day orientation covers company culture, policies, and benefits.
+   - Attendance is mandatory.
+
+Email onboarding@company.com for help.

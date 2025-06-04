@@ -3,97 +3,153 @@ from dotenv import load_dotenv
 from langchain_openai import ChatOpenAI
 from hr_tools import *
 from database import *
+import imaplib
+import email
+from typing import Dict, Any
+from auth import User
+from encryption import decrypt_data
+
+def process_email(user_id: str, mail: Dict[str, Any]) -> None:
+    """
+    Process a single email.
+    Args:
+        user_id: The ID of the user who owns this email
+        mail: Dictionary containing email data
+    """
+    print(f"Processing email from: {mail['from']}")
+    
+    try:
+        email_text = mail["body"]
+        
+        # Determine the correct thread_id for this email
+        thread_info = determine_thread_id(user_id, mail)
+        message_id = thread_info["message_id"]
+        thread_id = thread_info["thread_id"]
+        
+        # Get previous thread state
+        latest_doc_id, prev_state = get_latest_thread_state(user_id, thread_id)
+        
+        # Fetch thread history for context
+        history_text = get_thread_history(user_id, thread_id)
+        
+        # Classify email
+        classification = classify_email(email_text, history_text)
+        
+        # Generate response or escalate
+        if classification == "escalate":
+            store_admin_escalation(user_id, mail)
+            response_text = "Your request has been escalated to our HR team. They will get back to you shortly."
+            new_state = "escalated"
+        else:
+            # Get relevant documents for context
+            context_docs = retrieve_relevant_documents(email_text)
+            
+            # Generate response
+            response_text = generate_response(
+                email_text=email_text,
+                category=classification,
+                context_docs=context_docs,
+                history=history_text,
+                user_id=user_id
+            )
+            new_state = determine_next_state(prev_state, email_text, response_text)
+        
+        # Store result and send reply
+        doc_id, stored_thread_id = store_email_in_database(
+            user_id=user_id,
+            email_data=mail,
+            response=response_text,
+            classification=classification,
+            state=new_state,
+            thread_id=thread_id,
+            reply_status=True
+        )
+        
+        # Send reply
+        send_email_reply(
+            to_email=mail["from"],
+            subject=mail["subject"],
+            body=response_text,
+            message_id=message_id,
+            thread_id=thread_id,
+            user_id=user_id
+        )
+        
+        # Update previous thread state if needed
+        if latest_doc_id and new_state == "in_progress" and prev_state == "awaiting_info":
+            update_email_state(user_id, latest_doc_id, "in_progress")
+            
+    finally:
+        # Clean up resources
+        if 'context_docs' in locals():
+            del context_docs
+        if 'history_text' in locals():
+            del history_text
+        if 'email_text' in locals():
+            del email_text
+        if 'response_text' in locals():
+            del response_text
+        import gc
+        gc.collect()  # Force garbage collection
 
 def main():
-    # Load environment variables
-    load_dotenv()
-    EMAIL_USER = os.getenv("EMAIL_USER")
-    EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD")
+    """
+    Main function to process unread emails.
+    """
+    print("Checking inbox...")
+    
+    # Get all users with email configurations
+    users_ref = db.collection('users').stream()
+    
+    # Use a start date of 1 month ago
+    from datetime import datetime, timedelta
+    start_date = (datetime.now() - timedelta(days=2)).strftime('%d-%b-%Y')
+    
+    for user_doc in users_ref:
+        user_data = user_doc.to_dict()
+        user_id = user_doc.id
 
-    # Directory setup
-    documents_dir = "documents/"
-    db_dir = "db/"
-    persistent_directory = os.path.join(db_dir, "chroma_db_hr_docs")
-
-    # Initialize the LLM
-    model = ChatOpenAI(model="gpt-3.5-turbo")
-
-    try:
-        emails = fetch_emails()
-        print(f"\n📬 {len(emails)} unread emails fetched.")
-
-        for i, mail in enumerate(emails, 1):
-            print(f"\n{'=' * 40}")
-            print(f"✉️  Email #{i}")
-            print(f"From        : {mail['from']}")
-            print(f"Subject     : {mail['subject']}")
-            print(f"Message-ID  : {mail['message_id']}")
-            print(f"Body        : {mail['body'][:100]}...")
-            print(f"In-Reply-To : {mail.get('in_reply_to', 'N/A')}")
-            print(f"References  : {mail.get('references', 'N/A')}")
-
-            # Step 1: Determine thread
-            thread_info = determine_thread_id2(
-                message_id=mail.get("message_id"),
-                in_reply_to=mail.get("in_reply_to"),
-                references=mail.get("references")
+        print(f"\nProcessing user: {user_id}")
+        
+        # Get user object which has decrypted configurations
+        user = User.get(user_id)
+        if not user:
+            print(f"No user found for ID: {user_id}")
+            continue
+        if not user.incoming_email_config:
+            print(f"No incoming email configuration for user: {user_id}")
+            continue
+            
+        # Use the decrypted configuration from the User object
+        email_config = user.incoming_email_config
+        print(f"Email config for {user_id}:")
+        print(f"- Email: {email_config.get('email')}")
+        print(f"- Server: {email_config.get('server')}")
+        print(f"- Port: {email_config.get('port')}")
+        print(f"- SSL: {email_config.get('use_ssl')}")
+        
+        try:
+            # Fetch emails using user's configuration
+            print(f"\nAttempting to fetch emails for {email_config.get('email')}...")
+            emails = fetch_emails(
+                email=email_config['email'],
+                password=email_config['password'],  # Already decrypted by User.get()
+                server=email_config['server'],
+                start_date=start_date
             )
-            print(f"\n🧵 Thread mapping → {thread_info}")
-
-            # Step 2: Classify email
-            category = classify_email(mail["body"])
-            print(f"\n🏷️  Classification → {category}")
-
-            # Step 3: Retrieve relevant documents
-            relevant_docs = retrieve_relevant_documents(mail["body"])[0]
-            print(f"\n📚 Relevant documents →\n{relevant_docs}")
-
-            # Step 4: Get thread history
-            history = get_thread_history(thread_info["thread_id"])
-            print(f"\n📜 Thread history →\n{history}")
-
-            # Step 5: Generate response
-            response = generate_response(
-                email_text=mail["body"],
-                category=category,
-                context_docs=[""],
-                history=history
-            )
-            print(f"\n💬 Generated response →\n{response}")
-
-            # Step 6: Get current state
-            current_state = get_latest_thread_state(thread_info["thread_id"])[1]
-            print(f"\n🗂️  Current state → {current_state}")
-
-            # Step 7: Determine next state
-            next_state = determine_next_state(current_state, mail["body"], response)
-            print(f"\n➡️  Next state → {next_state}")
-
-            # Step 8: Send email reply
-            reply_status = send_email_reply(
-                to_email=mail["from"],
-                subject=mail["subject"],
-                body=response,
-                message_id=mail["message_id"],
-                thread_id=thread_info["thread_id"]
-            )
-            if reply_status:
-                print(f"\n✅ Email sent to {mail['from']}")
+            
+            if emails:
+                print(f"📬 {len(emails)} unread emails fetched for user {user_id}.")
+                
+                for email_data in emails:
+                    # Process the email
+                    process_email(user_id, email_data)
             else:
-                print(f"\n❌ Failed to send email to {mail['from']}")
+                print(f"No unread emails found for user {user_id}")
+            
+        except Exception as e:
+            print(f"Error processing emails for user {user_id}: {e}")
+            continue
 
-            # Step 9: Store email result
-            result = store_email_in_database(
-                email_data=mail,
-                response=response,
-                classification=category,
-                state=next_state,
-                thread_id=thread_info["thread_id"],
-                reply_status=reply_status
-            )
-            print(f"\n📦 Email stored → {result}")
-
-            print(f"{'=' * 40}")
-
-    except Exception as e:
-        print(f"\n❌ Error during execution: {e}")
+if __name__ == "__main__":
+    main() 

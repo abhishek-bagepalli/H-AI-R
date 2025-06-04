@@ -7,14 +7,14 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from algoliasearch.search.client import SearchClientSync
 from firebase_config import db
 from hr_main import main as process_inbox
-from hr_tools import send_email_reply
+from hr_tools import send_email_reply, fetch_emails
 from auth import User
+from document_manager import DocumentManager
 load_dotenv()
 
 # Flask app initialization
 app = Flask(__name__)
 app.secret_key = os.getenv("SECRET_KEY", "qwertypeepee")
-TEMPLATES_FILE = 'response_templates.json'
 
 # Flask-Login setup
 login_manager = LoginManager()
@@ -35,36 +35,68 @@ ALGOLIA_INDEX_NAME = os.getenv("ALGOLIA_INDEX_NAME")
 # Initialize Algolia client
 algolia_client = SearchClientSync(app_id=ALGOLIA_APP_ID, api_key=ALGOLIA_API_KEY)
 
-# Helper functions to load and save templates
 def load_templates():
-    if not os.path.exists(TEMPLATES_FILE):
+    """Load templates from Firebase for the current user"""
+    if not current_user.is_authenticated:
         return {}
-    with open(TEMPLATES_FILE, 'r') as f:
-        return json.load(f)
+    
+    templates_ref = db.collection('users').document(current_user.id).collection('templates')
+    templates = {}
+    
+    # Get all template documents
+    docs = templates_ref.stream()
+    for doc in docs:
+        templates[doc.id] = doc.to_dict()
+    
+    return templates
 
 def save_templates(data):
-    with open(TEMPLATES_FILE, 'w') as f:
-        json.dump(data, f, indent=2)
+    """Save templates to Firebase for the current user"""
+    if not current_user.is_authenticated:
+        return
+    
+    templates_ref = db.collection('users').document(current_user.id).collection('templates')
+    
+    # Delete existing templates
+    existing_docs = templates_ref.stream()
+    for doc in existing_docs:
+        doc.reference.delete()
+    
+    # Save new templates
+    for category, template_data in data.items():
+        templates_ref.document(category).set(template_data)
 
 @app.route("/", methods=["GET"])
 def index():
     if not current_user.is_authenticated:
         return redirect(url_for('login'))
+    if current_user.is_authenticated and not current_user.has_complete_email_config():
+        flash("Please configure your email settings to continue.", "warning")
+        return redirect(url_for('email_config'))
     return render_template("index.html")
 
 @app.route("/home", methods=["GET"])
 @login_required
 def home():
+    if not current_user.has_complete_email_config():
+        flash("Please configure your email settings to continue.", "warning")
+        return redirect(url_for('email_config'))
     return render_template("index.html")
 
 @app.route("/contact", methods=["GET"])
 @login_required
 def contact():
+    if not current_user.has_complete_email_config():
+        flash("Please configure your email settings to continue.", "warning")
+        return redirect(url_for('email_config'))
     return render_template("contact.html")
 
 @app.route("/search", methods=["GET"])
 @login_required
 def search_page():
+    if not current_user.has_complete_email_config():
+        flash("Please configure your email settings to continue.", "warning")
+        return redirect(url_for('email_config'))
     print('here')
     query = request.args.get("query", "").strip()
     classification_filter = request.args.get("classification", "").strip()
@@ -85,26 +117,34 @@ def search_page():
     if should_run_search:
         print(f"🔍 Searching for: {query or '[no query]'}")
         try:
-            search_response = algolia_client.search_single_index(
-                index_name=ALGOLIA_INDEX_NAME,
-                search_params={
-                    "query": query or "",  # empty string if query is blank
-                    "filters": filter_string
-                }
-            )
-            hits = search_response.hits
-            for hit in hits:
-                results.append({
-                    "objectID": hit.message_id,
-                    "sender": hit.sender,
-                    "status": hit.status,
-                    "classification": hit.classification,
-                    "subject": hit.subject,
-                    "body": hit.body,
-                    "response": hit.response
-                })
+            # Search in user's email history
+            email_history_ref = db.collection('users').document(current_user.id).collection("email_history")
+            
+            # Apply filters
+            if classification_filter:
+                email_history_ref = email_history_ref.where("classification", "==", classification_filter)
+            if status_filter:
+                email_history_ref = email_history_ref.where("status", "==", status_filter)
+            
+            # Get all matching documents
+            docs = email_history_ref.stream()
+            
+            # Filter by query if provided
+            for doc in docs:
+                data = doc.to_dict()
+                if not query or query.lower() in data.get("subject", "").lower() or query.lower() in data.get("body", "").lower():
+                    results.append({
+                        "objectID": doc.id,
+                        "sender": data.get("sender", ""),
+                        "status": data.get("status", ""),
+                        "classification": data.get("classification", ""),
+                        "subject": data.get("subject", ""),
+                        "body": data.get("body", ""),
+                        "response": data.get("response", "")
+                    })
+            
         except Exception as e:
-            print(f"⚠️ Algolia search error: {e}")
+            print(f"⚠️ Search error: {e}")
 
     return render_template("search.html", templates=templates, query=query,
                            results=results, selected_classification=classification_filter,
@@ -113,28 +153,44 @@ def search_page():
 @app.route("/templates", methods=["GET"])
 @login_required
 def template_manager():
+    if not current_user.has_complete_email_config():
+        flash("Please configure your email settings before accessing templates.", "warning")
+        return redirect(url_for('email_config'))
     templates = load_templates()
     return render_template("templates.html", templates=templates)
 
 @app.route('/add', methods=['POST'])
 @login_required
 def add_category():
+    if not current_user.has_complete_email_config():
+        flash("Please configure your email settings to continue.", "warning")
+        return redirect(url_for('email_config'))
+    
     category = request.form['category'].strip().lower().replace(" ", "_")
     templates = load_templates()
+    
     if category not in templates:
-        templates[category] = {
+        # Create new template in Firebase
+        templates_ref = db.collection('users').document(current_user.id).collection('templates')
+        templates_ref.document(category).set({
             "greeting": "",
             "acknowledgement": "",
             "info": "",
             "next_steps": "",
             "closing": ""
-        }
-        save_templates(templates)
-    return redirect(url_for('index'))
+        })
+        flash("Template category added successfully!", "success")
+    else:
+        flash("Template category already exists!", "warning")
+    
+    return redirect(url_for('template_manager'))
 
 @app.route("/update_email_fields", methods=["POST"])
 @login_required
 def update_email_fields():
+    if not current_user.has_complete_email_config():
+        flash("Please configure your email settings to continue.", "warning")
+        return redirect(url_for('email_config'))
     doc_id = request.form.get("doc_id", "").strip()
     new_status = request.form.get("status")
     new_classification = request.form.get("classification")
@@ -145,7 +201,7 @@ def update_email_fields():
 
     try:
         # Update in Firestore
-        db.collection("email_history").document(doc_id).update({
+        db.collection('users').document(current_user.id).collection("email_history").document(doc_id).update({
             "status": new_status,
             "classification": new_classification
         })
@@ -171,25 +227,52 @@ def update_email_fields():
 @app.route('/update/<category>', methods=['POST'])
 @login_required
 def update_template(category):
-    templates = load_templates()
-    if category in templates:
-        for key in templates[category].keys():
-            templates[category][key] = request.form.get(key, "")
-        save_templates(templates)
+    if not current_user.has_complete_email_config():
+        flash("Please configure your email settings to continue.", "warning")
+        return redirect(url_for('email_config'))
+    
+    templates_ref = db.collection('users').document(current_user.id).collection('templates')
+    template_doc = templates_ref.document(category)
+    
+    if template_doc.get().exists:
+        template_data = {
+            "greeting": request.form.get("greeting", ""),
+            "acknowledgement": request.form.get("acknowledgement", ""),
+            "info": request.form.get("info", ""),
+            "next_steps": request.form.get("next_steps", ""),
+            "closing": request.form.get("closing", "")
+        }
+        template_doc.set(template_data)
+        flash("Template updated successfully!", "success")
+    else:
+        flash("Template category not found!", "error")
+    
     return redirect(url_for('template_manager'))
 
 @app.route('/delete/<category>', methods=['POST'])
 @login_required
 def delete_category(category):
-    templates = load_templates()
-    if category in templates:
-        del templates[category]
-        save_templates(templates)
+    if not current_user.has_complete_email_config():
+        flash("Please configure your email settings to continue.", "warning")
+        return redirect(url_for('email_config'))
+    
+    templates_ref = db.collection('users').document(current_user.id).collection('templates')
+    template_doc = templates_ref.document(category)
+    
+    if template_doc.get().exists:
+        template_doc.delete()
+        flash("Template category deleted successfully!", "success")
+    else:
+        flash("Template category not found!", "error")
+    
     return redirect(url_for('template_manager'))
 
 @app.route("/send_reply", methods=["POST"])
 @login_required
 def send_reply():
+    if not current_user.has_complete_email_config():
+        flash("Please configure your email settings to continue.", "warning")
+        return redirect(url_for('email_config'))
     print('here in send reply')
 
     to_email = request.form.get("to_email")
@@ -257,13 +340,61 @@ def signup():
             flash("Email already registered", "danger")
             return render_template("signup.html")
             
-        user = User(None, email, None)
-        user.set_password(password)
-        user.save()
-        
-        login_user(user)
-        flash("Account created successfully!", "success")
-        return redirect(url_for('home'))
+        try:
+            # Create user
+            user = User(None, email, None)
+            user.set_password(password)
+            user.save()
+            
+            # Initialize default template categories
+            templates_ref = db.collection('users').document(user.id).collection('templates')
+            
+            default_templates = {
+                "leave_request": {
+                    "greeting": "Dear {name},",
+                    "acknowledgement": "Thank you for your leave request.",
+                    "info": "Your request for {number_of_days} days of leave has been {approved/denied}.",
+                    "next_steps": "Please ensure to complete your handover before your leave.",
+                    "closing": "Best regards,"
+                },
+                "job_inquiry": {
+                    "greeting": "Dear {name},",
+                    "acknowledgement": "Thank you for your interest in our company.",
+                    "info": "We have received your application for the {position} position.",
+                    "next_steps": "Our team will review your application and get back to you within 5 business days.",
+                    "closing": "Best regards,"
+                },
+                "onboarding": {
+                    "greeting": "Dear {name},",
+                    "acknowledgement": "Welcome to our team!",
+                    "info": "We are excited to have you join us as {position}.",
+                    "next_steps": "Please complete the onboarding documents attached and bring your ID documents on your first day.",
+                    "closing": "Best regards,"
+                },
+                "escalation": {
+                    "greeting": "Dear {name},",
+                    "acknowledgement": "Thank you for your email.",
+                    "info": "Your request requires additional attention and has been escalated to our team.",
+                    "next_steps": "A team member will review your case and get back to you shortly.",
+                    "closing": "Best regards,"
+                }
+            }
+            
+            # Save default templates
+            for category, template_data in default_templates.items():
+                templates_ref.document(category).set(template_data)
+            
+            login_user(user)
+            flash("Account created successfully! Please configure your email settings and upload required documents.", "success")
+            return redirect(url_for('email_config'))
+            
+        except Exception as e:
+            # If any error occurs during the process, clean up the user
+            if user.delete():
+                flash(f"Account creation failed: {str(e)}", "danger")
+            else:
+                flash("Error cleaning up failed account. Please contact support.", "danger")
+            return render_template("signup.html")
         
     return render_template("signup.html")
 
@@ -278,29 +409,195 @@ def logout():
 def email_config():
     if request.method == 'POST':
         config_type = request.form.get('config_type')
-        if config_type not in ['incoming', 'outgoing']:
+        
+        if config_type == 'documents':
+            # Initialize document manager
+            doc_manager = DocumentManager(current_user.id)
+            
+            # Get all template categories
+            templates = load_templates()
+            upload_success = True
+            
+            # Handle document uploads for each category
+            for category in templates.keys():
+                if category not in request.files:
+                    continue  # Skip if no file provided for this category
+                    
+                file = request.files[category]
+                if file.filename == '':
+                    continue  # Skip if no file selected
+                    
+                try:
+                    # Read file content as bytes
+                    file_content = file.read()
+                    if not doc_manager.upload_document(file_content, file.filename):
+                        flash(f"Error uploading document for {category.replace('_', ' ').title()}", "danger")
+                        upload_success = False
+                except Exception as e:
+                    flash(f"Error processing document for {category.replace('_', ' ').title()}: {str(e)}", "danger")
+                    upload_success = False
+            
+            if upload_success:
+                # Mark email configuration as complete
+                current_user.update_email_config('complete', {'is_complete': True})
+                flash("Configuration completed successfully!", "success")
+                return redirect(url_for('home'))
+            return redirect(url_for('email_config', tab='documents'))
+            
+        elif config_type == 'escalation':
+            escalation_email = request.form.get('escalation_email')
+            if not escalation_email:
+                flash('Escalation email is required', 'error')
+                return redirect(url_for('email_config', tab='escalation'))
+                
+            try:
+                # Validate email format
+                if '@' not in escalation_email or '.' not in escalation_email:
+                    flash('Invalid email format', 'error')
+                    return redirect(url_for('email_config', tab='escalation'))
+                    
+                current_user.update_email_config('escalation', {'escalation_email': escalation_email})
+                flash('Escalation email updated successfully', 'success')
+                # Move to documents tab after escalation
+                return redirect(url_for('email_config', tab='documents'))
+            except Exception as e:
+                print(f"❌ Error updating escalation email: {str(e)}")
+                flash(f'Error updating escalation email: {str(e)}', 'error')
+                return redirect(url_for('email_config', tab='escalation'))
+            
+        elif config_type in ['incoming', 'outgoing']:
+            config_data = {
+                'email': request.form.get('email'),
+                'password': request.form.get('password'),
+                'server': request.form.get('server'),
+                'port': request.form.get('port'),
+                'use_ssl': 'use_ssl' in request.form
+            }
+            
+            # Log the configuration attempt (excluding password)
+            print(f"\n📧 Attempting to configure {config_type} email:")
+            print(f"Email: {config_data['email']}")
+            print(f"Server: {config_data['server']}")
+            print(f"Port: {config_data['port']}")
+            print(f"SSL: {config_data['use_ssl']}")
+            print(f"Password length: {len(config_data['password']) if config_data['password'] else 0} characters")
+            
+            try:
+                current_user.update_email_config(config_type, config_data)
+                flash(f'{config_type.capitalize()} email configuration updated successfully', 'success')
+                
+                # Determine next tab based on current config_type
+                if config_type == 'incoming':
+                    return redirect(url_for('email_config', tab='outgoing'))
+                elif config_type == 'outgoing':
+                    return redirect(url_for('email_config', tab='escalation'))
+                    
+            except Exception as e:
+                print(f"❌ Error updating email configuration: {str(e)}")
+                flash(f'Error updating email configuration: {str(e)}', 'error')
+                return redirect(url_for('email_config', tab=config_type))
+            
+        else:
             flash('Invalid configuration type', 'error')
             return redirect(url_for('email_config'))
             
-        config_data = {
-            'email': request.form.get('email'),
-            'password': request.form.get('password'),
-            'server': request.form.get('server'),
-            'port': request.form.get('port'),
-            'use_ssl': request.form.get('use_ssl') == 'true'
-        }
-        
-        try:
-            current_user.update_email_config(config_type, config_data)
-            flash(f'{config_type.capitalize()} email configuration updated successfully', 'success')
-        except Exception as e:
-            flash(f'Error updating email configuration: {str(e)}', 'error')
-            
+    # Get the current tab from query parameters, default to 'incoming'
+    current_tab = request.args.get('tab', 'incoming')
+    
+    # Get existing configuration
+    user_doc = db.collection('users').document(current_user.id).get()
+    user_data = user_doc.to_dict() if user_doc.exists else {}
+    
+    # Load templates for the documents tab
+    templates = load_templates()
+    
+    return render_template('email_config.html', 
+                         templates=templates, 
+                         current_tab=current_tab,
+                         incoming_config=user_data.get('email_config_incoming', {}),
+                         outgoing_config=user_data.get('email_config_outgoing', {}),
+                         escalation_email=user_data.get('escalation_email', ''))
+
+@app.route('/documents', methods=['GET'])
+@login_required
+def document_list():
+    if not current_user.has_complete_email_config():
+        flash("Please configure your email settings to continue.", "warning")
         return redirect(url_for('email_config'))
         
-    return render_template('email_config.html')
+    doc_manager = DocumentManager(current_user.id)
+    documents = doc_manager.list_documents()
+    return render_template('documents.html', documents=documents)
 
-# Scheduler to process inbox every 5 minutes
+@app.route('/documents/upload', methods=['POST'])
+@login_required
+def upload_document():
+    if not current_user.has_complete_email_config():
+        flash("Please configure your email settings to continue.", "warning")
+        return redirect(url_for('email_config'))
+        
+    if 'document' not in request.files:
+        flash('No file selected', 'error')
+        return redirect(url_for('document_list'))
+        
+    file = request.files['document']
+    if file.filename == '':
+        flash('No file selected', 'error')
+        return redirect(url_for('document_list'))
+        
+    if file:
+        try:
+            content = file.read().decode('utf-8')
+            doc_manager = DocumentManager(current_user.id)
+            if doc_manager.upload_document(content, file.filename):
+                flash('Document uploaded successfully', 'success')
+            else:
+                flash('Error uploading document', 'error')
+        except Exception as e:
+            flash(f'Error processing file: {str(e)}', 'error')
+            
+    return redirect(url_for('document_list'))
+
+@app.route('/documents/delete/<filename>', methods=['POST'])
+@login_required
+def delete_document(filename):
+    if not current_user.has_complete_email_config():
+        flash("Please configure your email settings to continue.", "warning")
+        return redirect(url_for('email_config'))
+        
+    doc_manager = DocumentManager(current_user.id)
+    if doc_manager.delete_document(filename):
+        flash('Document deleted successfully', 'success')
+    else:
+        flash('Error deleting document', 'error')
+        
+    return redirect(url_for('document_list'))
+
+@app.route('/documents/edit/<filename>', methods=['GET', 'POST'])
+@login_required
+def edit_document(filename):
+    if not current_user.has_complete_email_config():
+        flash("Please configure your email settings to continue.", "warning")
+        return redirect(url_for('email_config'))
+        
+    doc_manager = DocumentManager(current_user.id)
+    
+    if request.method == 'POST':
+        content = request.form.get('content')
+        if doc_manager.update_document(filename, content):
+            flash('Document updated successfully', 'success')
+            return redirect(url_for('document_list'))
+        else:
+            flash('Error updating document', 'error')
+            
+    content = doc_manager.get_document_content(filename)
+    if content is None:
+        flash('Document not found', 'error')
+        return redirect(url_for('document_list'))
+        
+    return render_template('edit_document.html', filename=filename, content=content)
+
+# Initialize scheduler
 scheduler = BackgroundScheduler()
 scheduler.add_job(func=process_inbox, trigger="interval", minutes=5)
 scheduler.start()

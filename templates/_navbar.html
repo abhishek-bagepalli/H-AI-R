@@ -1,17 +1,58 @@
-<nav class="navbar">
-  <ul>
-    <li><a href="/home" {% if request.path=='/' %}class="active" {% endif %}>Home</a></li>
-    <li><a href="/search" {% if request.path=='/search' %}class="active" {% endif %}>Search Emails</a></li>
-    <li><a href="/templates" {% if request.path=='/templates' %}class="active" {% endif %}>Manage Templates</a></li>
-    <li><a href="/contact" {% if request.path=='/contact' %}class="active" {% endif %}>About Me</a></li>
-  </ul>
-  <ul class="auth-links">
-    {% if current_user.is_authenticated %}
-      <li><span class="user-email">{{ current_user.email }}</span></li>
-      <li><a href="{{ url_for('logout') }}">Logout</a></li>
-    {% else %}
-      <li><a href="{{ url_for('login') }}">Login</a></li>
-      <li><a href="{{ url_for('signup') }}">Sign Up</a></li>
-    {% endif %}
-  </ul>
+<nav class="navbar navbar-expand-lg navbar-light bg-light">
+  <div class="container-fluid">
+
+
+
+    <!-- Hamburger Menu Button -->
+    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav"
+      aria-label="Toggle navigation">
+      <span class="navbar-toggler-icon"></span>
+    </button>
+
+    <!-- Collapsible Content -->
+    <div class="collapse navbar-collapse" id="navbarNav">
+      <!-- Left side navigation items -->
+      <div class="left">
+        <!-- Logo -->
+        <a class="navbar-brand" href="{{ url_for('home') }}">H(ai)R</a>
+
+        <ul class="navbar-nav me-auto">
+          {% if current_user.is_authenticated %}
+          <li class="nav-item">
+            <a class="nav-link" href="{{ url_for('template_manager') }}">Templates</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="{{ url_for('search_page') }}">Search Emails</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="{{ url_for('email_config') }}">Email Settings</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="{{ url_for('contact') }}">About Me</a>
+          </li>
+          {% endif %}
+        </ul>
+      </div>
+
+
+      <!-- Right side user info -->
+      <ul class="navbar-nav">
+        {% if current_user.is_authenticated %}
+        <li class="nav-item">
+          <span class="nav-link">{{ current_user.email }}</span>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" href="{{ url_for('logout') }}">Logout</a>
+        </li>
+        {% else %}
+        <li class="nav-item">
+          <a class="nav-link" href="{{ url_for('login') }}">Login</a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" href="{{ url_for('signup') }}">Sign Up</a>
+        </li>
+        {% endif %}
+      </ul>
+    </div>
+  </div>
 </nav>

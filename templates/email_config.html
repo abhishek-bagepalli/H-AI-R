@@ -1,106 +1,180 @@
-{% extends "base.html" %}
+{% extends "index.html" %}
 
 {% block content %}
 <div class="container mt-5">
-    <h2 class="mb-4">Email Configuration</h2>
-    
-    {% with messages = get_flashed_messages(with_categories=true) %}
-        {% if messages %}
-            {% for category, message in messages %}
-                <div class="alert alert-{{ category }}">{{ message }}</div>
-            {% endfor %}
-        {% endif %}
-    {% endwith %}
-    
-    <div class="row">
-        <!-- Incoming Email Configuration -->
-        <div class="col-md-6">
-            <div class="card mb-4">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card">
                 <div class="card-header">
-                    <h4>Incoming Email Configuration</h4>
+                    <h3 class="text-center">Email Configuration</h3>
                 </div>
                 <div class="card-body">
-                    <form method="POST" action="{{ url_for('email_config') }}">
-                        <input type="hidden" name="config_type" value="incoming">
-                        
-                        <div class="mb-3">
-                            <label for="incoming_email" class="form-label">Email Address</label>
-                            <input type="email" class="form-control" id="incoming_email" name="email" 
-                                   value="{{ current_user.incoming_email_config.email if current_user.incoming_email_config else '' }}" required>
+                    {% with messages = get_flashed_messages(with_categories=true) %}
+                        {% if messages %}
+                            {% for category, message in messages %}
+                                <div class="alert alert-{{ category }}">{{ message }}</div>
+                            {% endfor %}
+                        {% endif %}
+                    {% endwith %}
+
+                    <ul class="nav nav-tabs mb-4" id="configTabs" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link {% if current_tab == 'incoming' %}active{% endif %}" id="incoming-tab" data-bs-toggle="tab" data-bs-target="#incoming" type="button" role="tab">Incoming Email</button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link {% if current_tab == 'outgoing' %}active{% endif %}" id="outgoing-tab" data-bs-toggle="tab" data-bs-target="#outgoing" type="button" role="tab">Outgoing Email</button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link {% if current_tab == 'escalation' %}active{% endif %}" id="escalation-tab" data-bs-toggle="tab" data-bs-target="#escalation" type="button" role="tab">Escalation</button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link {% if current_tab == 'documents' %}active{% endif %}" id="documents-tab" data-bs-toggle="tab" data-bs-target="#documents" type="button" role="tab">Company Documents</button>
+                        </li>
+                    </ul>
+
+                    <div class="tab-content" id="configTabsContent">
+                        <!-- Incoming Email Tab -->
+                        <div class="tab-pane fade {% if current_tab == 'incoming' %}show active{% endif %}" id="incoming" role="tabpanel">
+                            <div class="card mb-4">
+                                <div class="card-header bg-info text-white">
+                                    <h5 class="mb-0">How to get your Gmail App Password:</h5>
+                                </div>
+                                <div class="card-body">
+                                    <ol class="mb-0">
+                                        <li>Go to your Google Account settings</li>
+                                        <li>Navigate to Security</li>
+                                        <li>Enable 2-Step Verification if not already enabled</li>
+                                        <li>Go to App Passwords</li>
+                                        <li>Select "Mail" and your device</li>
+                                        <li>Copy the 16-character password</li>
+                                        <li>Paste it in the password field below</li>
+                                    </ol>
+                                </div>
+                            </div>
+                            <form method="POST">
+                                <input type="hidden" name="config_type" value="incoming">
+                                <div class="mb-3">
+                                    <label for="email" class="form-label">Email Address</label>
+                                    <input type="email" class="form-control" id="email" name="email" value="{{ incoming_config.email }}" required>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="password" class="form-label">App Password</label>
+                                    <input type="password" class="form-control" id="password" name="password" placeholder="Enter your app password" required>
+                                    <small class="form-text text-muted">Use your Gmail App Password, not your regular Gmail password</small>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="server" class="form-label">IMAP Server</label>
+                                    <input type="text" class="form-control" id="server" name="server" value="{{ incoming_config.server or 'imap.gmail.com' }}" required>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="port" class="form-label">Port</label>
+                                    <input type="number" class="form-control" id="port" name="port" value="{{ incoming_config.port or '993' }}" required>
+                                </div>
+                                <div class="mb-3 form-check">
+                                    <input type="checkbox" class="form-check-input" id="use_ssl" name="use_ssl" {% if incoming_config.use_ssl %}checked{% endif %}>
+                                    <label class="form-check-label" for="use_ssl">Use SSL</label>
+                                </div>
+                                <button type="submit" class="btn btn-primary">Save Incoming Configuration</button>
+                            </form>
                         </div>
-                        
-                        <div class="mb-3">
-                            <label for="incoming_password" class="form-label">Password</label>
-                            <input type="password" class="form-control" id="incoming_password" name="password" 
-                                   value="{{ current_user.incoming_email_config.password if current_user.incoming_email_config else '' }}" required>
+
+                        <!-- Outgoing Email Tab -->
+                        <div class="tab-pane fade {% if current_tab == 'outgoing' %}show active{% endif %}" id="outgoing" role="tabpanel">
+                            <div class="card mb-4">
+                                <div class="card-header bg-info text-white">
+                                    <h5 class="mb-0">How to get your Gmail App Password:</h5>
+                                </div>
+                                <div class="card-body">
+                                    <ol class="mb-0">
+                                        <li>Go to your Google Account settings</li>
+                                        <li>Navigate to Security</li>
+                                        <li>Enable 2-Step Verification if not already enabled</li>
+                                        <li>Go to App Passwords</li>
+                                        <li>Select "Mail" and your device</li>
+                                        <li>Copy the 16-character password</li>
+                                        <li>Paste it in the password field below</li>
+                                    </ol>
+                                </div>
+                            </div>
+                            <form method="POST">
+                                <input type="hidden" name="config_type" value="outgoing">
+                                <div class="mb-3">
+                                    <label for="outgoing_email" class="form-label">Email Address</label>
+                                    <input type="email" class="form-control" id="outgoing_email" name="email" value="{{ outgoing_config.email }}" required>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="outgoing_password" class="form-label">App Password</label>
+                                    <input type="password" class="form-control" id="outgoing_password" name="password" placeholder="Enter your app password" required>
+                                    <small class="form-text text-muted">Use your Gmail App Password, not your regular Gmail password</small>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="outgoing_server" class="form-label">SMTP Server</label>
+                                    <input type="text" class="form-control" id="outgoing_server" name="server" value="{{ outgoing_config.server or 'smtp.gmail.com' }}" required>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="outgoing_port" class="form-label">Port</label>
+                                    <input type="number" class="form-control" id="outgoing_port" name="port" value="{{ outgoing_config.port or '465' }}" required>
+                                </div>
+                                <div class="mb-3 form-check">
+                                    <input type="checkbox" class="form-check-input" id="outgoing_use_ssl" name="use_ssl" {% if outgoing_config.use_ssl %}checked{% endif %}>
+                                    <label class="form-check-label" for="outgoing_use_ssl">Use SSL</label>
+                                </div>
+                                <button type="submit" class="btn btn-primary">Save Outgoing Configuration</button>
+                            </form>
                         </div>
-                        
-                        <div class="mb-3">
-                            <label for="incoming_server" class="form-label">Server</label>
-                            <input type="text" class="form-control" id="incoming_server" name="server" 
-                                   value="{{ current_user.incoming_email_config.server if current_user.incoming_email_config else '' }}" required>
+
+                        <!-- Escalation Tab -->
+                        <div class="tab-pane fade {% if current_tab == 'escalation' %}show active{% endif %}" id="escalation" role="tabpanel">
+                            <div class="card mb-4">
+                                <div class="card-header bg-info text-white">
+                                    <h5 class="mb-0">About Escalation Email:</h5>
+                                </div>
+                                <div class="card-body">
+                                    <p class="mb-0">This email will receive escalated cases that require human attention. Make sure to use an email address that is actively monitored.</p>
+                                </div>
+                            </div>
+                            <form method="POST">
+                                <input type="hidden" name="config_type" value="escalation">
+                                <div class="mb-3">
+                                    <label for="escalation_email" class="form-label">Escalation Email Address</label>
+                                    <input type="email" class="form-control" id="escalation_email" name="escalation_email" value="{{ escalation_email }}" required>
+                                </div>
+                                <button type="submit" class="btn btn-primary">Save Escalation Email</button>
+                            </form>
                         </div>
-                        
-                        <div class="mb-3">
-                            <label for="incoming_port" class="form-label">Port</label>
-                            <input type="number" class="form-control" id="incoming_port" name="port" 
-                                   value="{{ current_user.incoming_email_config.port if current_user.incoming_email_config else '' }}" required>
+
+                        <!-- Documents Tab -->
+                        <div class="tab-pane fade {% if current_tab == 'documents' %}show active{% endif %}" id="documents" role="tabpanel">
+                            <div class="card mb-4">
+                                <div class="card-header bg-info text-white">
+                                    <h5 class="mb-0">About Company Documents:</h5>
+                                </div>
+                                <div class="card-body">
+                                    <p class="mb-0">Upload documents for each category to provide accurate responses to employee inquiries. Each category should have its own document that contains relevant information. Supported formats: .txt and .pdf</p>
+                                </div>
+                            </div>
+                            <form method="POST" enctype="multipart/form-data">
+                                <input type="hidden" name="config_type" value="documents">
+                                
+                                {% for category, template in templates.items() %}
+                                <div class="card mb-3">
+                                    <div class="card-header">
+                                        <h6 class="mb-0">{{ category|replace('_', ' ')|title }}</h6>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="mb-3">
+                                            <label for="{{ category }}" class="form-label">Document for {{ category|replace('_', ' ')|title }}</label>
+                                            <input type="file" class="form-control" id="{{ category }}" name="{{ category }}" accept=".txt,.pdf">
+                                            <small class="form-text text-muted">Upload a document containing information about {{ category|replace('_', ' ')|title }}. Supported formats: .txt and .pdf</small>
+                                        </div>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                                
+                                <button type="submit" class="btn btn-primary">Save Documents</button>
+                            </form>
                         </div>
-                        
-                        <div class="mb-3 form-check">
-                            <input type="checkbox" class="form-check-input" id="incoming_ssl" name="use_ssl" 
-                                   {% if current_user.incoming_email_config and current_user.incoming_email_config.use_ssl %}checked{% endif %}>
-                            <label class="form-check-label" for="incoming_ssl">Use SSL</label>
-                        </div>
-                        
-                        <button type="submit" class="btn btn-primary">Save Incoming Configuration</button>
-                    </form>
-                </div>
-            </div>
-        </div>
-        
-        <!-- Outgoing Email Configuration -->
-        <div class="col-md-6">
-            <div class="card mb-4">
-                <div class="card-header">
-                    <h4>Outgoing Email Configuration</h4>
-                </div>
-                <div class="card-body">
-                    <form method="POST" action="{{ url_for('email_config') }}">
-                        <input type="hidden" name="config_type" value="outgoing">
-                        
-                        <div class="mb-3">
-                            <label for="outgoing_email" class="form-label">Email Address</label>
-                            <input type="email" class="form-control" id="outgoing_email" name="email" 
-                                   value="{{ current_user.outgoing_email_config.email if current_user.outgoing_email_config else '' }}" required>
-                        </div>
-                        
-                        <div class="mb-3">
-                            <label for="outgoing_password" class="form-label">Password</label>
-                            <input type="password" class="form-control" id="outgoing_password" name="password" 
-                                   value="{{ current_user.outgoing_email_config.password if current_user.outgoing_email_config else '' }}" required>
-                        </div>
-                        
-                        <div class="mb-3">
-                            <label for="outgoing_server" class="form-label">Server</label>
-                            <input type="text" class="form-control" id="outgoing_server" name="server" 
-                                   value="{{ current_user.outgoing_email_config.server if current_user.outgoing_email_config else '' }}" required>
-                        </div>
-                        
-                        <div class="mb-3">
-                            <label for="outgoing_port" class="form-label">Port</label>
-                            <input type="number" class="form-control" id="outgoing_port" name="port" 
-                                   value="{{ current_user.outgoing_email_config.port if current_user.outgoing_email_config else '' }}" required>
-                        </div>
-                        
-                        <div class="mb-3 form-check">
-                            <input type="checkbox" class="form-check-input" id="outgoing_ssl" name="use_ssl" 
-                                   {% if current_user.outgoing_email_config and current_user.outgoing_email_config.use_ssl %}checked{% endif %}>
-                            <label class="form-check-label" for="outgoing_ssl">Use SSL</label>
-                        </div>
-                        
-                        <button type="submit" class="btn btn-primary">Save Outgoing Configuration</button>
-                    </form>
+                    </div>
                 </div>
             </div>
         </div>

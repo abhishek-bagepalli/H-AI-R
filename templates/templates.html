@@ -2,7 +2,7 @@
 {% extends "index.html" %}
 
 {% block content %}
-<div class="container mt-4">
+<div class="container mt-4 templates-page">
     <h1 class="mb-4">Categories and Templates</h1>
 
     <form action="/add" method="post" class="mb-4">
@@ -22,7 +22,7 @@
             <h5 class="mb-0">{{ category.replace("_", " ").title() }}</h5>
             <span class="arrow">▼</span>
         </div>
-        <div class="card-body" style="display: none;">
+        <div class="card-body">
             <form action="/update/{{ category }}" method="post">
                 {% for field, value in fields.items() %}
                 <div class="mb-3">
@@ -32,26 +32,40 @@
                 {% endfor %}
                 <div class="d-flex gap-2">
                     <button type="submit" class="btn btn-primary">Update Category</button>
-                    <form action="/delete/{{ category }}" method="post" class="d-inline" onsubmit="return confirm('Are you sure you want to delete this category?');">
-                        <button type="submit" class="btn btn-danger">Delete Category</button>
-                    </form>
                 </div>
+            </form>
+            <form action="/delete/{{ category }}" method="post" class="mt-2" onsubmit="return confirm('Are you sure you want to delete this category?');">
+                <button type="submit" class="btn btn-danger">Delete Category</button>
             </form>
         </div>
     </div>
     {% endfor %}
 </div>
 
+<style>
+.card {
+    overflow: hidden;
+}
+.card-body {
+    transition: max-height 0.3s ease-out;
+    max-height: 0;
+    padding: 0;
+}
+.card.open .card-body {
+    max-height: 1000px;
+    padding: 1.25rem;
+}
+</style>
+
 <script>
 function toggleCategory(header) {
-    const cardBody = header.nextElementSibling;
-    const arrow = header.querySelector('.arrow');
+    const card = header.parentElement;
+    card.classList.toggle('open');
     
-    if (cardBody.style.display === 'none') {
-        cardBody.style.display = 'block';
+    const arrow = header.querySelector('.arrow');
+    if (card.classList.contains('open')) {
         arrow.textContent = '▲';
     } else {
-        cardBody.style.display = 'none';
         arrow.textContent = '▼';
     }
 }

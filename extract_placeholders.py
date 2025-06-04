@@ -1,21 +1,34 @@
 import re
 
 def extract_placeholders(email_text: str) -> dict:
+    """
+    Extract placeholders from email text for use in response templates.
+    Args:
+        email_text: The content of the email to extract placeholders from
+    Returns:
+        Dictionary of placeholders and their values
+    """
     placeholders = {}
+
+    # Set default name first
+    placeholders["employee_name"] = "Employee"
+    placeholders["applicant_name"] = "Applicant"
 
     # 1. Extract employee name from greeting first
     name_match = re.search(r"Hi\s+([A-Z][a-z]+)", email_text) or \
                  re.search(r"Hello\s+([A-Z][a-z]+)", email_text) or \
                  re.search(r"Dear\s+([A-Z][a-z]+)", email_text)
 
-    if not name_match:
+    if name_match:
+        name = name_match.group(1)
+        placeholders["employee_name"] = name
+        placeholders["applicant_name"] = name
+    else:
         signature_match = re.search(r"(Thanks|Regards|Best|Sincerely)[,\s]*(?:-|—)?\s*([A-Z][a-z]+\s?[A-Z]?[a-z]*)", email_text, re.IGNORECASE)
         if signature_match:
-            placeholders["employee_name"] = signature_match.group(2).strip()
-        else:
-            placeholders["employee_name"] = "Employee"
-    else:
-        placeholders["employee_name"] = name_match.group(1)
+            name = signature_match.group(2).strip()
+            placeholders["employee_name"] = name
+            placeholders["applicant_name"] = name
 
     # 2. Extract leave dates
     date_matches = re.findall(r"\b(?:\d{1,2}(?:st|nd|rd|th)?\s+\w+\s+\d{4}|\w+\s+\d{1,2}(?:st|nd|rd|th)?(?:,)?\s+\d{4})\b", email_text)
@@ -43,8 +56,4 @@ def extract_placeholders(email_text: str) -> dict:
     # 5. VERY IMPORTANT DEFAULT
     placeholders["approved/denied"] = "approved"
 
-    if "employee_name" in placeholders:
-        placeholders["applicant_name"] = placeholders["employee_name"]
-    else:
-        placeholders["applicant_name"] = "Applicant"
-    return placeholders
+    return placeholders 

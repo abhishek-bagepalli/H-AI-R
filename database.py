@@ -4,6 +4,7 @@ from dotenv import load_dotenv
 import smtplib
 from email.message import EmailMessage
 import os
+from typing import Dict, Any
 
 load_dotenv()
 HR_ADMIN_EMAIL = "hairescalation88@gmail.com"
@@ -13,10 +14,11 @@ HR_EMAIL_PASSWORD = os.getenv("HR_EMAIL_PASSWORD")
 def normalize_id(msg_id: str) -> str:
     return msg_id.strip().replace("<", "").replace(">", "") if msg_id else ""
 
-def get_email_thread_history(thread_id: str):
+def get_email_thread_history(user_id: str, thread_id: str):
     thread_id = normalize_id(thread_id)
     docs = (
-        db.collection("email_history")
+        db.collection('users').document(user_id)
+        .collection("email_history")
         .where("thread_id", "==", thread_id)
         .order_by("timestamp", direction=firestore.Query.ASCENDING)
         .stream()
@@ -27,7 +29,7 @@ def get_email_thread_history(thread_id: str):
         history.append(f"User: {data['body']}\nAgent: {data.get('response', '')}")
     return "\\n\\n".join(history)
 
-def store_email_result(mail, result, classification, reply_status, state="new", thread_id=None, ):
+def store_email_result(user_id: str, mail, result, classification, reply_status, state="new", thread_id=None):
     message_id = normalize_id(mail["message_id"])
     thread_id = normalize_id(thread_id or message_id)
 
@@ -47,14 +49,23 @@ def store_email_result(mail, result, classification, reply_status, state="new", 
     }
 
     # Use message_id as document ID for deduplication
-    doc_ref = db.collection("email_history").document(message_id)
+    doc_ref = db.collection('users').document(user_id).collection("email_history").document(message_id)
     doc_ref.set(email_data)
     return message_id, thread_id
 
-def get_latest_thread_state(thread_id: str):
+def get_latest_thread_state(user_id: str, thread_id: str):
+    """
+    Get the latest state of a thread for a specific user.
+    Args:
+        user_id: The ID of the user who owns this thread
+        thread_id: The ID of the thread to check
+    Returns:
+        Tuple of (doc_id, state)
+    """
     thread_id = normalize_id(thread_id)
     docs = (
-        db.collection("email_history")
+        db.collection('users').document(user_id)
+        .collection("email_history")
         .where("thread_id", "==", thread_id)
         .order_by("timestamp", direction=firestore.Query.DESCENDING)
         .limit(1)
@@ -64,35 +75,34 @@ def get_latest_thread_state(thread_id: str):
         return doc.id, doc.to_dict().get("status", "new")
     return None, "new"
 
-def update_email_state(doc_id: str, new_state: str):
-    db.collection("email_history").document(doc_id).update({"status": new_state})
+def update_email_state(user_id: str, doc_id: str, new_state: str):
+    db.collection('users').document(user_id).collection("email_history").document(doc_id).update({"status": new_state})
 
-def store_admin_feedback(email_doc_id: str, feedback: str):
+def store_admin_feedback(user_id: str, email_doc_id: str, feedback: str):
     feedback_data = {
         "email_id": email_doc_id,
         "feedback": feedback,
         "timestamp": firestore.SERVER_TIMESTAMP
     }
-    db.collection("admin_feedback").add(feedback_data)
+    db.collection('users').document(user_id).collection("admin_feedback").add(feedback_data)
 
-def store_admin_escalation(mail):
+def store_admin_escalation(user_id: str, email_data: Dict[str, Any]) -> None:
+    """
+    Store an escalated email for admin review.
+    Args:
+        user_id: The ID of the user who owns this email
+        email_data: Dictionary containing email data
+    """
     escalation_data = {
-        "sender": mail["from"],
-        "subject": mail["subject"],
-        "body": mail["body"],
-        "status": "pending",
+        "user_id": user_id,
+        "sender": email_data["from"],
+        "subject": email_data["subject"],
+        "body": email_data["body"],
         "timestamp": firestore.SERVER_TIMESTAMP,
-        "message_id": normalize_id(mail["message_id"]),
-        "in_reply_to": normalize_id(mail.get("in_reply_to") or ""),
-        "references": normalize_id(mail.get("references") or "")
+        "status": "pending"
     }
-    message_id = normalize_id(mail["message_id"])
-    doc_ref = db.collection("admin_escalations").document(message_id)
-    doc_ref.set(escalation_data)
-
-    notify_hr_admin(mail)
-
-    return message_id
+    
+    db.collection('admin_escalations').add(escalation_data)
 
 def notify_hr_admin(mail):
     msg = EmailMessage()

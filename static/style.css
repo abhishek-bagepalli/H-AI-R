@@ -230,10 +230,9 @@ hr {
   color: white;
   box-shadow: 0 0 8px rgba(0, 0, 0, 0.05);
   /* background-color: #333; */
-  padding: 10px 20px;
   margin-bottom: 30px;
   display: flex;
-  justify-content: center;
+  /* justify-content: center; */
   
   font-family: "Inter", sans-serif;
   letter-spacing: 0.3vh;
@@ -250,6 +249,8 @@ hr {
 
 .navbar li {
   display: inline;
+  color: black;
+  font-weight: bold;
 }
 
 .navbar a {
@@ -326,6 +327,7 @@ hr {
   height: 5vh;
   border-radius: 4px;
   text-align: center;
+  background: none;
 }
 
 .filter-svg-icon{
@@ -518,4 +520,28 @@ hr {
   margin-bottom: 10px;
   padding-left: 1.2em;
   text-indent: -1.2em;
+}
+
+.navbar{
+  /* border: 1px solid red; */
+}
+.left{
+  /* border: 1px solid blue; */
+  display: flex;
+  flex-direction: row;
+}
+.right{
+  /* border: 1px solid green; */
+}
+.collapse{
+  /* border: 1px solid red; */
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.container-fluid{
+  /* border: 1px solid red; */
+  margin: 0;
+  padding: 0;
 }

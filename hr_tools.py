@@ -1,11 +1,11 @@
 import os
 import imaplib
 import smtplib
-import email
+import email as email_module
 import re
 from email.message import EmailMessage
 from typing import Dict, List, Any, Optional
-from firebase_config import db as firestore_db
+from firebase_config import db
 from dotenv import load_dotenv
 from langchain.text_splitter import CharacterTextSplitter
 from langchain_community.document_loaders import TextLoader, DirectoryLoader
@@ -19,30 +19,60 @@ from collections import defaultdict
 from extract_placeholders import extract_placeholders
 from langchain_core.tools import tool
 import json
+from auth import User
 
 load_dotenv()
 
 # Environment and configuration setup
-EMAIL_USER = os.getenv("EMAIL_USER")
-EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD")
+# EMAIL_USER = os.getenv("EMAIL_USER")
+# EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD")
 
 # Directory setup for document storage and retrieval
-documents_dir = "documents/"
-db_dir = "db/"
-persistent_directory = os.path.join(db_dir, "chroma_db_hr_docs")
+BASE_DOCUMENTS_DIR = "documents/"
+BASE_DB_DIR = "db/"
+
+def get_user_directories(user_id: str) -> Dict[str, str]:
+    """Get user-specific directory paths."""
+    return {
+        'documents': os.path.join(BASE_DOCUMENTS_DIR, user_id),
+        'db': os.path.join(BASE_DB_DIR, f"chroma_db_{user_id}")
+    }
+
+def ensure_user_directories(user_id: str) -> None:
+    """Create user-specific directories if they don't exist."""
+    dirs = get_user_directories(user_id)
+    for dir_path in dirs.values():
+        os.makedirs(dir_path, exist_ok=True)
 
 # Initialize the LLM
 model = ChatOpenAI(model="gpt-3.5-turbo")
 
 # Vector store initialization
-def initialize_vectorstore():
+def initialize_vectorstore(user_id: str = None) -> Chroma:
     """Initialize or rebuild the vector store with document embeddings."""
-    loader = DirectoryLoader(
-        documents_dir, 
-        glob="**/*.txt", 
-        loader_cls=TextLoader
-    )
-    documents = loader.load()
+    if user_id:
+        # User-specific vector store
+        dirs = get_user_directories(user_id)
+        ensure_user_directories(user_id)
+        
+        loader = DirectoryLoader(
+            dirs['documents'], 
+            glob="**/*.txt", 
+            loader_cls=TextLoader
+        )
+    else:
+        # Legacy support for global vector store
+        loader = DirectoryLoader(
+            BASE_DOCUMENTS_DIR, 
+            glob="**/*.txt", 
+            loader_cls=TextLoader
+        )
+
+    try:
+        documents = loader.load()
+    except Exception as e:
+        print(f"Warning: No documents found for user {user_id}: {str(e)}")
+        documents = []
 
     # Split and embed
     text_splitter = CharacterTextSplitter(chunk_size=1000, chunk_overlap=0)
@@ -51,18 +81,34 @@ def initialize_vectorstore():
     embedding = OpenAIEmbeddings(model="text-embedding-3-small")
 
     # Create and persist vectorstore
-    vectorstore = Chroma.from_documents(
-        documents=texts,
-        embedding=embedding,
-        persist_directory=persistent_directory
-    )
+    if user_id:
+        vectorstore = Chroma.from_documents(
+            documents=texts,
+            embedding=embedding,
+            persist_directory=dirs['db']
+        )
+    else:
+        # Legacy support
+        vectorstore = Chroma.from_documents(
+            documents=texts,
+            embedding=embedding,
+            persist_directory=os.path.join(BASE_DB_DIR, "chroma_db_hr_docs")
+        )
 
-    print("Vectorstore initialized successfully.")
+    print(f"Vectorstore initialized successfully for user {user_id or 'global'}")
     return vectorstore
 
-# Initialize vector database
-vectorstore = initialize_vectorstore()
-retriever = vectorstore.as_retriever(search_type="mmr", search_kwargs={"k": 3,"lambda_mult": 0.5})
+def get_retriever(user_id: str = None) -> Any:
+    """Get a retriever for the specified user or global retriever."""
+    # Check if we have any documents before initializing
+    if user_id:
+        dirs = get_user_directories(user_id)
+        if not os.path.exists(dirs['documents']) or not os.listdir(dirs['documents']):
+            print("No documents found, returning empty retriever")
+            return None
+    
+    vectorstore = initialize_vectorstore(user_id)
+    return vectorstore.as_retriever(search_type="mmr", search_kwargs={"k": 3, "lambda_mult": 0.5})
 
 # Define Tools for the Agent
 
@@ -91,28 +137,42 @@ def classify_email(email_text: str, history: str = "") -> str:
     return result
 
 
-def retrieve_relevant_documents(query: str) -> List[str]:
+def retrieve_relevant_documents(query: str, user_id: str = None) -> List[str]:
     """
     Retrieve relevant documents from the knowledge base based on the query.
     Args:
         query: The query to search for in the knowledge base
+        user_id: Optional user ID for user-specific document retrieval
     Returns:
         A list of relevant document contents
     """
+    # Check if user has any documents first
+    if user_id:
+        dirs = get_user_directories(user_id)
+        if not os.path.exists(dirs['documents']) or not os.listdir(dirs['documents']):
+            print("No documents found for user, skipping document retrieval")
+            return []
+    
+    # Only initialize vector store if we have documents
+    retriever = get_retriever(user_id)
+    if retriever is None:
+        return []
+        
     docs = retriever.invoke(query)
     return [doc.page_content for doc in docs]
 
 
-def get_thread_history(thread_id: str) -> str:
+def get_thread_history(user_id: str, thread_id: str) -> str:
     """
     Retrieve the email thread history for a given thread ID.
     Args:
+        user_id: The ID of the user who owns this email
         thread_id: The ID of the thread to retrieve history for
     Returns:
         A string containing the thread history
     """
     from database import get_email_thread_history
-    return get_email_thread_history(thread_id)
+    return get_email_thread_history(user_id, thread_id)
 
 
 def get_thread_state(thread_id: str) -> Dict[str, str]:
@@ -128,7 +188,7 @@ def get_thread_state(thread_id: str) -> Dict[str, str]:
     return {"doc_id": doc_id, "state": state}
 
 
-def generate_response(email_text: str, category: str, context_docs: List[str], history: str = "") -> str:
+def generate_response(email_text: str, category: str, context_docs: List[str], history: str = "", user_id: str = None) -> str:
     """
     Generate a response based on the email category, context documents, and history.
     Args:
@@ -136,14 +196,30 @@ def generate_response(email_text: str, category: str, context_docs: List[str], h
         category: The category of the email (leave_request, job_inquiry, onboarding, escalate)
         context_docs: List of relevant document contents to use as context
         history: Optional previous conversation history
+        user_id: The ID of the user who owns this email
     Returns:
         Generated response text
     """
+    # If no documents are available, proceed without them
+    if not context_docs:
+        print("No context documents available, generating response without them")
+        context_docs = []
+    
     def load_response_templates():
-        if os.path.exists('response_templates.json'):
-            with open('response_templates.json', 'r') as f:
-                return json.load(f)
-        return {}
+        if not user_id:
+            return {}
+            
+        # Get templates from Firebase for this user
+        templates_ref = db.collection('users').document(user_id).collection('templates')
+        templates = {}
+        
+        # Get all template documents
+        docs = templates_ref.stream()
+        for doc in docs:
+            templates[doc.id] = doc.to_dict()
+            
+        return templates
+
     response_templates = load_response_templates()
 
     # Extract placeholder values from email
@@ -161,15 +237,28 @@ def generate_response(email_text: str, category: str, context_docs: List[str], h
             approval_decision = "denied"
         placeholders["approved/denied"] = approval_decision
 
+    # Add name field for backward compatibility
+    placeholders["name"] = placeholders.get("employee_name", "Employee")
+
     # Use SafeDict to avoid KeyError
     safe_placeholders = defaultdict(str, placeholders)
 
     response_template_raw = response_templates.get(category, {})
-    filled_template = {
-        key: value.format(**safe_placeholders)
-        for key, value in response_template_raw.items()
-    }
+    try:
+        filled_template = {
+            key: value.format(**safe_placeholders)
+            for key, value in response_template_raw.items()
+        }
+    except KeyError as e:
+        print(f"Warning: Missing placeholder {e} in template. Using default value.")
+        filled_template = {
+            key: value.format(**safe_placeholders)
+            for key, value in response_template_raw.items()
+        }
 
+    # Modify the prompt to handle cases with no context documents
+    context_text = "\n".join(context_docs) if context_docs else "No specific documentation available."
+    
     rag_prompt = ChatPromptTemplate.from_messages([
     ("system", 
      "You are an HR executive writing professional, helpful email replies.\n\n"
@@ -185,8 +274,7 @@ def generate_response(email_text: str, category: str, context_docs: List[str], h
      "Previous conversation:\n{history}\n\n"
      "Current email:\n{email}\n\n"
      "Suggested Response Template (for guidance only):\n{response_template}"
-     )
-])
+    )])
 
     context = "\n\n".join(context_docs)
     chain = rag_prompt | model | StrOutputParser()
@@ -202,7 +290,6 @@ def generate_response(email_text: str, category: str, context_docs: List[str], h
     if isinstance(result, dict):
         result = "\n\n".join(value for value in result.values() if value)
 
-    
     return result
 
 
@@ -277,10 +364,11 @@ def store_email_with_context(context: Dict[str, Any]) -> Dict[str, str]:
 
 
 
-def store_email_in_database(email_data: Dict[str, Any], response: str, classification: str, state: str, thread_id: str, reply_status:bool) -> Dict[str, str]:
+def store_email_in_database(user_id: str, email_data: Dict[str, Any], response: str, classification: str, state: str, thread_id: str, reply_status:bool) -> Dict[str, str]:
     """
     Store email and response in the database.
     Args:
+        user_id: The ID of the user who owns this email
         email_data: Dictionary containing email data
         response: Generated response text
         classification: Email classification
@@ -291,7 +379,13 @@ def store_email_in_database(email_data: Dict[str, Any], response: str, classific
     """
     from database import store_email_result
     doc_id, stored_thread_id = store_email_result(
-        email_data, response, classification, state=state, thread_id=thread_id, reply_status=reply_status
+        user_id=user_id,
+        mail=email_data,
+        result=response,
+        classification=classification,
+        state=state,
+        thread_id=thread_id,
+        reply_status=reply_status
     )
     return {"doc_id": doc_id, "thread_id": stored_thread_id}
 
@@ -323,7 +417,7 @@ def store_escalation(email_data: Dict[str, Any]) -> bool:
     return True
 
 
-def send_email_reply(to_email: str, subject: str, body: str, message_id: str, thread_id: str) -> bool:
+def send_email_reply(to_email: str, subject: str, body: str, message_id: str, thread_id: str, user_id: str = None) -> bool:
     """
     Send an email reply.
     Args:
@@ -332,10 +426,22 @@ def send_email_reply(to_email: str, subject: str, body: str, message_id: str, th
         body: Email body
         message_id: Original message ID to reply to
         thread_id: Thread ID
+        user_id: The ID of the user whose email configuration to use
     Returns:
         True if successful, False otherwise
     """
-    signature = "\n\nAI-AGENT\nHR Department\nhairagent88@gmail.com"
+    if not user_id:
+        print("Error: user_id is required to send email reply")
+        return False
+        
+    # Get user's email configuration
+    user = User.get(user_id)
+    if not user or not user.outgoing_email_config:
+        print(f"Error: No outgoing email configuration found for user {user_id}")
+        return False
+        
+    email_config = user.outgoing_email_config
+    signature = "\n\nAI-AGENT\nHR Department\n" + email_config['email']
     
     # Remove existing signature if present
     signature_patterns = [
@@ -350,15 +456,15 @@ def send_email_reply(to_email: str, subject: str, body: str, message_id: str, th
 
     msg = EmailMessage()
     msg["Subject"] = "Re: " + subject if not subject.startswith("Re: ") else subject
-    msg["From"] = EMAIL_USER
+    msg["From"] = email_config['email']
     msg["To"] = to_email
     msg["In-Reply-To"] = message_id
     msg["References"] = message_id
     msg.set_content(final_body)
 
     try:
-        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
-            smtp.login(EMAIL_USER, EMAIL_PASSWORD)
+        with smtplib.SMTP_SSL(email_config['server'], int(email_config.get('port', 465))) as smtp:
+            smtp.login(email_config['email'], email_config['password'].decode())
             smtp.send_message(msg)
         return True
     except Exception as e:
@@ -377,10 +483,11 @@ def normalize_message_id(msg_id: str) -> str:
     return msg_id.strip().replace("<", "").replace(">", "") if msg_id else ""
 
 
-def determine_thread_id(message_data: Dict[str, Any]) -> Dict[str, str]:
+def determine_thread_id(user_id: str, message_data: Dict[str, Any]) -> Dict[str, str]:
     """
     Determine the correct thread_id for an email.
     Args:
+        user_id: The ID of the user who owns this email
         message_data: Dictionary containing message_id, in_reply_to, and references
     Returns:
         Dictionary with message_id and thread_id
@@ -398,7 +505,7 @@ def determine_thread_id(message_data: Dict[str, Any]) -> Dict[str, str]:
 
     # Try to find the thread in our database
     if in_reply_to:
-        ref_doc_query = firestore_db.collection("email_history").where("message_id", "==", in_reply_to).limit(1).stream()
+        ref_doc_query = db.collection('users').document(user_id).collection("email_history").where("message_id", "==", in_reply_to).limit(1).stream()
         for doc in ref_doc_query:
             thread_id = doc.to_dict().get("thread_id", in_reply_to)
             return {"message_id": message_id, "thread_id": thread_id}
@@ -406,7 +513,7 @@ def determine_thread_id(message_data: Dict[str, Any]) -> Dict[str, str]:
     if references:
         ref_ids = [normalize_message_id(ref.strip()) for ref in references.split()]
         for ref_id in ref_ids:
-            ref_doc_query = firestore_db.collection("email_history").where("message_id", "==", ref_id).limit(1).stream()
+            ref_doc_query = db.collection('users').document(user_id).collection("email_history").where("message_id", "==", ref_id).limit(1).stream()
             for doc in ref_doc_query:
                 thread_id = doc.to_dict().get("thread_id", ref_id)
                 return {"message_id": message_id, "thread_id": thread_id}
@@ -423,20 +530,9 @@ def determine_thread_id2(message_id,in_reply_to, references):
     Returns:
         Dictionary with message_id and thread_id
     """
-    # # SAFE GETTER
-    # def safe_get_and_normalize(field):
-    #     value = message_data.get(field)
-    #     if value is None:
-    #         value = ""
-    #     return normalize_message_id(value)
-
-    # message_id = safe_get_and_normalize("message_id")
-    # in_reply_to = safe_get_and_normalize("in_reply_to")
-    # references = safe_get_and_normalize("references")
-
     # Try to find the thread in our database
     if in_reply_to:
-        ref_doc_query = firestore_db.collection("email_history").where("message_id", "==", in_reply_to).limit(1).stream()
+        ref_doc_query = db.collection("email_history").where("message_id", "==", in_reply_to).limit(1).stream()
         for doc in ref_doc_query:
             thread_id = doc.to_dict().get("thread_id", in_reply_to)
             return {"message_id": message_id, "thread_id": thread_id}
@@ -444,56 +540,116 @@ def determine_thread_id2(message_id,in_reply_to, references):
     if references:
         ref_ids = [normalize_message_id(ref.strip()) for ref in references.split()]
         for ref_id in ref_ids:
-            ref_doc_query = firestore_db.collection("email_history").where("message_id", "==", ref_id).limit(1).stream()
+            ref_doc_query = db.collection("email_history").where("message_id", "==", ref_id).limit(1).stream()
             for doc in ref_doc_query:
                 thread_id = doc.to_dict().get("thread_id", ref_id)
-                return {"message_id": message_id, "thread_id": thread_id}
+                return {"message_id": message_id, "thread_id": ref_id}
 
     # New thread if nothing found
     return {"message_id": message_id, "thread_id": message_id}
 
 
 # Use a regular function rather than a tool for fetch_emails to avoid the tool invocation issue
-def fetch_emails() -> List[Dict[str, Any]]:
+def fetch_emails(email: str, password: bytes, server: str = "imap.gmail.com", start_date: str = None) -> List[Dict[str, Any]]:
     """
     Fetch unread emails from the inbox.
+    Args:
+        email: Email address to use for login
+        password: Password or app password for the email account (as bytes)
+        server: IMAP server address (defaults to Gmail)
+        start_date: Date string in format 'DD-MMM-YYYY' (e.g., '01-Jan-2024'). If None, fetches all unread emails.
     Returns:
         List of dictionaries containing email data
     """
-    mail = imaplib.IMAP4_SSL("imap.gmail.com")
-    mail.login(EMAIL_USER, EMAIL_PASSWORD)
+    print(f"Attempting to connect to {server}...")
+    mail = imaplib.IMAP4_SSL(server)
+    
+    print(f"Attempting to login with email: {email}")
+    try:
+        mail.login(email, password.decode())  # Decode bytes to string for login
+    except Exception as e:
+        print(f"Login failed: {str(e)}")
+        raise
+    
+    print("Selecting inbox...")
     mail.select("inbox")
-    status, messages = mail.search(None, '(UNSEEN)')
+    
+    # Construct search criteria
+    search_criteria = '(UNSEEN)'
+    if start_date:
+        search_criteria = f'(UNSEEN SINCE "{start_date}")'
+    
+    print(f"Searching for unread messages {f'after {start_date}' if start_date else ''}...")
+    status, messages = mail.search(None, search_criteria)
+    if status != 'OK':
+        print(f"Search failed with status: {status}")
+        return []
+        
+    message_count = len(messages[0].split())
+    print(f"Found {message_count} unread messages")
+    if message_count > 100:
+        print("Warning: Large number of unread messages found. Consider using a more recent start_date.")
+    
     email_data = []
 
     for num in messages[0].split():
+        print(f"Fetching message {num}...")
         status, msg_data = mail.fetch(num, "(RFC822)")
+        if status != 'OK':
+            print(f"Failed to fetch message {num}")
+            continue
+            
         for response_part in msg_data:
             if isinstance(response_part, tuple):
-                msg = email.message_from_bytes(response_part[1])
-                sender = email.utils.parseaddr(msg["From"])[1]
-                subject = msg["Subject"]
-                message_id = msg["Message-ID"]
-                in_reply_to = msg["In-Reply-To"]
-                references = msg["References"]
-                body = ""
+                try:
+                    # response_part[1] is already bytes, no need to convert
+                    msg = email_module.message_from_bytes(response_part[1])
+                    sender = email_module.utils.parseaddr(msg["From"])[1]
+                    subject = msg["Subject"]
+                    message_id = msg["Message-ID"]
+                    in_reply_to = msg["In-Reply-To"]
+                    references = msg["References"]
+                    body = ""
 
-                if msg.is_multipart():
-                    for part in msg.walk():
-                        if part.get_content_type() == "text/plain":
-                            body = part.get_payload(decode=True).decode()
-                            break
-                else:
-                    body = msg.get_payload(decode=True).decode()
+                    if msg.is_multipart():
+                        for part in msg.walk():
+                            if part.get_content_type() == "text/plain":
+                                try:
+                                    # Try to get the charset from the part
+                                    charset = part.get_content_charset() or 'utf-8'
+                                    body = part.get_payload(decode=True).decode(charset, errors='replace')
+                                except Exception as e:
+                                    print(f"Error decoding part: {e}")
+                                    # If decoding fails, try with latin-1 which can handle any byte sequence
+                                    body = part.get_payload(decode=True).decode('latin-1', errors='replace')
+                                break
+                    else:
+                        try:
+                            # Try to get the charset from the message
+                            charset = msg.get_content_charset() or 'utf-8'
+                            body = msg.get_payload(decode=True).decode(charset, errors='replace')
+                        except Exception as e:
+                            print(f"Error decoding message: {e}")
+                            # If decoding fails, try with latin-1 which can handle any byte sequence
+                            body = msg.get_payload(decode=True).decode('latin-1', errors='replace')
 
-                email_data.append({
-                    "from": sender,
-                    "subject": subject,
-                    "body": body,
-                    "message_id": message_id,
-                    "in_reply_to": in_reply_to,
-                    "references": references
-                })
+                    email_data.append({
+                        "from": sender,
+                        "subject": subject,
+                        "body": body,
+                        "message_id": message_id,
+                        "in_reply_to": in_reply_to,
+                        "references": references
+                    })
+                    print(f"Successfully processed message {num}")
+                except Exception as e:
+                    print(f"Error processing message {num}: {str(e)}")
+                    continue
+                    
+        print(f"Marking message {num} as read...")
         mail.store(num, '+FLAGS', '\\Seen')  # mark as read
+        
+    print("Logging out...")
     mail.logout()
+    print(f"Returning {len(email_data)} processed messages")
     return email_data

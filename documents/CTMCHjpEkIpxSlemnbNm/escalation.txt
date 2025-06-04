@@ -1,0 +1,18 @@
+
+Escalation Guidelines:
+
+1. When to Escalate:
+   - When classification is ambiguous (e.g., unclear email purpose).
+   - When an automated response could cause reputational risk.
+   - When the sender is a VIP or an external legal entity.
+
+2. Admin Handling:
+   - Review full email content and logs.
+   - Provide manual response or adjust classification logic.
+   - Option to retrain model or update flow state.
+
+3. Logging:
+   - All escalations are logged to /logs/escalations.
+   - Admin response is tracked for learning.
+
+Reach out to ai-admin@company.com for escalations.
