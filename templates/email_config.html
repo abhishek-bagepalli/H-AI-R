@@ -150,10 +150,48 @@
                                     <h5 class="mb-0">About Company Documents:</h5>
                                 </div>
                                 <div class="card-body">
-                                    <p class="mb-0">Upload documents for each category to provide accurate responses to employee inquiries. Each category should have its own document that contains relevant information. Supported formats: .txt and .pdf</p>
+                                    <p class="mb-0">Upload documents for each category to provide accurate responses to employee inquiries. Each category should have its own document that contains relevant information. Only PDF files are supported.</p>
                                 </div>
                             </div>
-                            <form method="POST" enctype="multipart/form-data">
+
+                            <!-- List of Uploaded Documents -->
+                            {% if documents %}
+                            <div class="card mb-4">
+                                <div class="card-header">
+                                    <h6 class="mb-0">Uploaded Documents</h6>
+                                </div>
+                                <div class="card-body">
+                                    <div class="table-responsive">
+                                        <table class="table">
+                                            <thead>
+                                                <tr>
+                                                    <th>Category</th>
+                                                    <th>Filename</th>
+                                                    <th>Upload Date</th>
+                                                    <th>Actions</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {% for doc in documents %}
+                                                <tr>
+                                                    <td>{{ doc.category|replace('_', ' ')|title }}</td>
+                                                    <td>{{ doc.filename }}</td>
+                                                    <td>{{ doc.upload_date }}</td>
+                                                    <td>
+                                                        <form method="POST" action="{{ url_for('delete_document', document_id=doc.document_id) }}" style="display: inline;">
+                                                            <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Are you sure you want to delete this document?')">Delete</button>
+                                                        </form>
+                                                    </td>
+                                                </tr>
+                                                {% endfor %}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                            {% endif %}
+
+                            <form method="POST" enctype="multipart/form-data" id="documentForm">
                                 <input type="hidden" name="config_type" value="documents">
                                 
                                 {% for category, template in templates.items() %}
@@ -164,14 +202,13 @@
                                     <div class="card-body">
                                         <div class="mb-3">
                                             <label for="{{ category }}" class="form-label">Document for {{ category|replace('_', ' ')|title }}</label>
-                                            <input type="file" class="form-control" id="{{ category }}" name="{{ category }}" accept=".txt,.pdf">
-                                            <small class="form-text text-muted">Upload a document containing information about {{ category|replace('_', ' ')|title }}. Supported formats: .txt and .pdf</small>
+                                            <input type="file" class="form-control" id="{{ category }}" name="{{ category }}" accept=".pdf">
+                                            <small class="form-text text-muted">Upload a PDF document containing information about {{ category|replace('_', ' ')|title }}. Only PDF files are supported.</small>
                                         </div>
+                                        <button type="submit" class="btn btn-primary" name="save_category" value="{{ category }}">Save {{ category|replace('_', ' ')|title }} Document</button>
                                     </div>
                                 </div>
                                 {% endfor %}
-                                
-                                <button type="submit" class="btn btn-primary">Save Documents</button>
                             </form>
                         </div>
                     </div>

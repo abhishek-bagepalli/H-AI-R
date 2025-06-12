@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2>Search Results for "{{ query }}"</h2>
+    
+    {% if results %}
+        <div class="row">
+            {% for result in results %}
+                <div class="col-md-12 mb-4">
+                    <div class="card">
+                        <div class="card-body">
+                            <h5 class="card-title">
+                                Document: {{ result.filename }}
+                                <small class="text-muted">(Similarity: {{ "%.2f"|format(result.similarity * 100) }}%)</small>
+                            </h5>
+                            <p class="card-text">{{ result.text }}</p>
+                            <div class="mt-2">
+                                <a href="{{ url_for('get_document', document_id=result.document_id) }}" 
+                                   class="btn btn-primary btn-sm">View Full Document</a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <div class="alert alert-info">
+            No results found for your search query.
+        </div>
+    {% endif %}
+    
+    <div class="mt-4">
+        <a href="{{ url_for('document_list') }}" class="btn btn-secondary">Back to Documents</a>
+    </div>
+</div>
+{% endblock %} 

@@ -95,10 +95,23 @@ class User(UserMixin):
             new_user_ref.set(user_data)
 
     def set_password(self, password):
-        self.password_hash = generate_password_hash(password)
+        self.password_hash = generate_password_hash(password, method='pbkdf2:sha256')
 
     def check_password(self, password):
-        return check_password_hash(self.password_hash, password)
+        try:
+            return check_password_hash(self.password_hash, password)
+        except ValueError as e:
+            if "unsupported hash type scrypt" in str(e):
+                # If scrypt fails, try to rehash with pbkdf2
+                new_hash = generate_password_hash(password, method='pbkdf2:sha256')
+                # Update the hash in the database
+                db.collection('users').document(self.id).update({
+                    'password_hash': new_hash
+                })
+                # Update the instance
+                self.password_hash = new_hash
+                return True
+            raise
 
     def update_email_config(self, config_type: str, config_data: dict) -> None:
         """Update email configuration for the user.

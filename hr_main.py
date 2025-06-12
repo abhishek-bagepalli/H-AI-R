@@ -20,29 +20,37 @@ def process_email(user_id: str, mail: Dict[str, Any]) -> None:
     
     try:
         email_text = mail["body"]
+        print("1. Got email body")
         
         # Determine the correct thread_id for this email
         thread_info = determine_thread_id(user_id, mail)
         message_id = thread_info["message_id"]
         thread_id = thread_info["thread_id"]
+        print(f"2. Determined thread info - message_id: {message_id}, thread_id: {thread_id}")
         
         # Get previous thread state
         latest_doc_id, prev_state = get_latest_thread_state(user_id, thread_id)
+        print(f"3. Got previous thread state - doc_id: {latest_doc_id}, state: {prev_state}")
         
         # Fetch thread history for context
         history_text = get_thread_history(user_id, thread_id)
+        print("4. Got thread history")
         
         # Classify email
         classification = classify_email(email_text, history_text)
+        print(f"5. Classified email as: {classification}")
         
         # Generate response or escalate
         if classification == "escalate":
+            print("6a. Processing escalation")
             store_admin_escalation(user_id, mail)
             response_text = "Your request has been escalated to our HR team. They will get back to you shortly."
             new_state = "escalated"
         else:
+            print("6b. Processing normal response")
             # Get relevant documents for context
-            context_docs = retrieve_relevant_documents(email_text)
+            context_docs = retrieve_relevant_documents(email_text, user_id)
+            print(f"7. Retrieved {len(context_docs)} relevant documents")
             
             # Generate response
             response_text = generate_response(
@@ -52,7 +60,9 @@ def process_email(user_id: str, mail: Dict[str, Any]) -> None:
                 history=history_text,
                 user_id=user_id
             )
+            print("8. Generated response")
             new_state = determine_next_state(prev_state, email_text, response_text)
+            print(f"9. Determined new state: {new_state}")
         
         # Store result and send reply
         doc_id, stored_thread_id = store_email_in_database(
@@ -64,6 +74,9 @@ def process_email(user_id: str, mail: Dict[str, Any]) -> None:
             thread_id=thread_id,
             reply_status=True
         )
+        print(f"10. Stored email in database with doc_id: {doc_id}")
+
+        print("11. Sending reply to ", mail["from"])
         
         # Send reply
         send_email_reply(
@@ -74,11 +87,17 @@ def process_email(user_id: str, mail: Dict[str, Any]) -> None:
             thread_id=thread_id,
             user_id=user_id
         )
+
+        print(f"12. Sent reply to {mail['from']}")
         
         # Update previous thread state if needed
         if latest_doc_id and new_state == "in_progress" and prev_state == "awaiting_info":
             update_email_state(user_id, latest_doc_id, "in_progress")
+            print("13. Updated previous thread state")
             
+    except Exception as e:
+        print(f"❌ Error processing email: {str(e)}")
+        raise
     finally:
         # Clean up resources
         if 'context_docs' in locals():

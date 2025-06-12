@@ -13,6 +13,7 @@ def extract_placeholders(email_text: str) -> dict:
     # Set default name first
     placeholders["employee_name"] = "Employee"
     placeholders["applicant_name"] = "Applicant"
+    placeholders["position"] = "the position"  # Default position value
 
     # 1. Extract employee name from greeting first
     name_match = re.search(r"Hi\s+([A-Z][a-z]+)", email_text) or \
@@ -30,21 +31,26 @@ def extract_placeholders(email_text: str) -> dict:
             placeholders["employee_name"] = name
             placeholders["applicant_name"] = name
 
-    # 2. Extract leave dates
+    # 2. Extract position from email text
+    position_match = re.search(r"(?:applying|applied|interested in|position of|role of)\s+([A-Z][a-zA-Z\s]+(?:Engineer|Developer|Manager|Analyst|Designer|Specialist|Consultant|Administrator|Coordinator|Assistant))", email_text, re.IGNORECASE)
+    if position_match:
+        placeholders["position"] = position_match.group(1).strip()
+
+    # 3. Extract leave dates
     date_matches = re.findall(r"\b(?:\d{1,2}(?:st|nd|rd|th)?\s+\w+\s+\d{4}|\w+\s+\d{1,2}(?:st|nd|rd|th)?(?:,)?\s+\d{4})\b", email_text)
     if date_matches:
         placeholders["leave_dates"] = " to ".join(date_matches) if len(date_matches) >= 2 else date_matches[0]
     else:
         placeholders["leave_dates"] = "the requested dates"
 
-    # 3. Extract number of days
+    # 4. Extract number of days
     num_days_match = re.search(r"(\d+)\s+(?:days|day)", email_text.lower())
     if num_days_match:
         placeholders["number_of_days"] = num_days_match.group(1)
     else:
         placeholders["number_of_days"] = "N/A"
 
-    # 4. Other fixed fields
+    # 5. Other fixed fields
     placeholders["company_name"] = "Company"
     placeholders["list_of_open_roles"] = "Software Engineer, Data Analyst"
     placeholders["careers_portal_link"] = "https://careers.company.com"
@@ -53,7 +59,7 @@ def extract_placeholders(email_text: str) -> dict:
     placeholders["hr_contact_name"] = "Jane Doe"
     placeholders["hr_contact_email"] = "onboarding@company.com"
 
-    # 5. VERY IMPORTANT DEFAULT
+    # 6. VERY IMPORTANT DEFAULT
     placeholders["approved/denied"] = "approved"
 
     return placeholders 

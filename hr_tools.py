@@ -13,6 +13,7 @@ from langchain_chroma import Chroma
 from langchain_openai import OpenAIEmbeddings, ChatOpenAI
 from langchain.prompts import ChatPromptTemplate
 from langchain.schema.output_parser import StrOutputParser
+from langchain_core.documents import Document
 from langchain.tools import tool
 from collections import defaultdict
 # from response_templates import response_templates
@@ -20,6 +21,9 @@ from extract_placeholders import extract_placeholders
 from langchain_core.tools import tool
 import json
 from auth import User
+from google.cloud.firestore import FieldFilter
+import firebase_admin
+import numpy as np
 
 load_dotenv()
 
@@ -48,67 +52,148 @@ def ensure_user_directories(user_id: str) -> None:
 model = ChatOpenAI(model="gpt-3.5-turbo")
 
 # Vector store initialization
-def initialize_vectorstore(user_id: str = None) -> Chroma:
-    """Initialize or rebuild the vector store with document embeddings."""
-    if user_id:
-        # User-specific vector store
-        dirs = get_user_directories(user_id)
-        ensure_user_directories(user_id)
-        
-        loader = DirectoryLoader(
-            dirs['documents'], 
-            glob="**/*.txt", 
-            loader_cls=TextLoader
-        )
-    else:
-        # Legacy support for global vector store
-        loader = DirectoryLoader(
-            BASE_DOCUMENTS_DIR, 
-            glob="**/*.txt", 
-            loader_cls=TextLoader
-        )
-
+def initialize_vectorstore(user_id: str = None) -> None:
+    """Initialize or update document embeddings in Firebase."""
     try:
-        documents = loader.load()
-    except Exception as e:
-        print(f"Warning: No documents found for user {user_id}: {str(e)}")
+        if not user_id:
+            print("Warning: No user_id provided, skipping vector store initialization")
+            return
+
+        # Initialize Firebase Storage and Firestore
+        storage = firebase_admin.storage.bucket()
+        db = firebase_admin.firestore.client()
+
+        # Get user's documents from Firebase Storage
+        print(f"Loading documents for user {user_id} from Firebase Storage...")
+        user_docs_ref = storage.list_blobs(prefix=f"users/{user_id}/documents/")
         documents = []
 
-    # Split and embed
-    text_splitter = CharacterTextSplitter(chunk_size=1000, chunk_overlap=0)
-    texts = text_splitter.split_documents(documents)
+        for blob in user_docs_ref:
+            if blob.name.endswith('.pdf'):
+                print(f"Processing document: {blob.name}")
+                # Download PDF content
+                pdf_content = blob.download_as_bytes()
+                
+                # Extract text from PDF
+                text = extract_text_from_pdf(pdf_content)
+                
+                # Split text into chunks
+                text_splitter = CharacterTextSplitter(chunk_size=1000, chunk_overlap=0)
+                chunks = text_splitter.split_text(text)
+                
+                # Create embeddings for each chunk
+                embedding = OpenAIEmbeddings(model="text-embedding-3-small")
+                embeddings = embedding.embed_documents(chunks)
+                
+                # Store chunks and embeddings in Firestore
+                doc_ref = db.collection('users').document(user_id).collection('embeddings')
+                
+                for i, (chunk, embedding) in enumerate(zip(chunks, embeddings)):
+                    doc_ref.add({
+                        'document_id': blob.name.split('/')[-1],
+                        'chunk_index': i,
+                        'content': chunk,
+                        'embedding': embedding,
+                        'created_at': firebase_admin.firestore.SERVER_TIMESTAMP
+                    })
+                
+                print(f"Successfully processed and stored embeddings for {blob.name}")
 
-    embedding = OpenAIEmbeddings(model="text-embedding-3-small")
-
-    # Create and persist vectorstore
-    if user_id:
-        vectorstore = Chroma.from_documents(
-            documents=texts,
-            embedding=embedding,
-            persist_directory=dirs['db']
-        )
-    else:
-        # Legacy support
-        vectorstore = Chroma.from_documents(
-            documents=texts,
-            embedding=embedding,
-            persist_directory=os.path.join(BASE_DB_DIR, "chroma_db_hr_docs")
-        )
-
-    print(f"Vectorstore initialized successfully for user {user_id or 'global'}")
-    return vectorstore
+        print(f"Vector store initialization completed for user {user_id}")
+        
+    except Exception as e:
+        print(f"Error in initialize_vectorstore: {str(e)}")
+        print(f"Error type: {type(e)}")
+        import traceback
+        print(f"Traceback: {traceback.format_exc()}")
+        raise
 
 def get_retriever(user_id: str = None) -> Any:
-    """Get a retriever for the specified user or global retriever."""
-    # Check if we have any documents before initializing
-    if user_id:
-        dirs = get_user_directories(user_id)
-        if not os.path.exists(dirs['documents']) or not os.listdir(dirs['documents']):
-            print("No documents found, returning empty retriever")
+    """Get a retriever for the specified user using Firebase."""
+    if not user_id:
+        print("Warning: No user_id provided, returning None")
+        return None
+
+    try:
+        # Initialize Firestore
+        db = firebase_admin.firestore.client()
+        
+        # Check if user has any embeddings
+        embeddings_ref = db.collection('users').document(user_id).collection('embeddings')
+        if not embeddings_ref.limit(1).get():
+            print("No embeddings found for user, returning None")
             return None
+
+        # Create a custom retriever that uses Firebase
+        class FirebaseRetriever:
+            def __init__(self, user_id: str):
+                self.user_id = user_id
+                self.db = firebase_admin.firestore.client()
+                self.embedding = OpenAIEmbeddings(model="text-embedding-3-small")
+
+            def invoke(self, query: str) -> List[Document]:
+                # Convert query to embedding
+                query_embedding = self.embedding.embed_query(query)
+                
+                # Get all embeddings for the user
+                embeddings_ref = self.db.collection('users').document(self.user_id).collection('embeddings')
+                embeddings = embeddings_ref.stream()
+                
+                # Calculate cosine similarity and get top matches
+                results = []
+                for doc in embeddings:
+                    doc_data = doc.to_dict()
+                    similarity = cosine_similarity(query_embedding, doc_data["embedding"])
+                    results.append((similarity, doc_data["text"], doc_data.get("filename", "Unknown")))
+                
+                # Sort by similarity and get top 3
+                results.sort(reverse=True)
+                top_results = results[:3]
+                
+                # Print relevant documents with similarity scores
+                print("\n📄 Relevant Documents:")
+                for similarity, content, filename in top_results:
+                    if similarity > 0.7:  # Only show highly relevant content
+                        print(f"\nFrom: {filename}")
+                        print(f"Relevance: {similarity:.2%}")
+                        print("-" * 50)
+                        print(content)
+                        print("-" * 50)
+                
+                # Convert to Document objects
+                return [Document(page_content=content) for _, content, _ in top_results]
+
+        return FirebaseRetriever(user_id)
+        
+    except Exception as e:
+        print(f"Error in get_retriever: {str(e)}")
+        print(f"Error type: {type(e)}")
+        import traceback
+        print(f"Traceback: {traceback.format_exc()}")
+        return None
+
+def cosine_similarity(v1: List[float], v2: List[float]) -> float:
+    """Calculate cosine similarity between two vectors."""
+    dot_product = np.dot(v1, v2)
+    norm_v1 = np.linalg.norm(v1)
+    norm_v2 = np.linalg.norm(v2)
+    return dot_product / (norm_v1 * norm_v2)
+
+def extract_text_from_pdf(pdf_content: bytes) -> str:
+    """Extract text from PDF content."""
+    import io
+    from PyPDF2 import PdfReader
     
-    vectorstore = initialize_vectorstore(user_id)
-    return vectorstore.as_retriever(search_type="mmr", search_kwargs={"k": 3, "lambda_mult": 0.5})
+    try:
+        pdf_file = io.BytesIO(pdf_content)
+        reader = PdfReader(pdf_file)
+        text = ""
+        for page in reader.pages:
+            text += page.extract_text() + "\n"
+        return text
+    except Exception as e:
+        print(f"Error extracting text from PDF: {str(e)}")
+        raise
 
 # Define Tools for the Agent
 
@@ -146,20 +231,33 @@ def retrieve_relevant_documents(query: str, user_id: str = None) -> List[str]:
     Returns:
         A list of relevant document contents
     """
-    # Check if user has any documents first
-    if user_id:
-        dirs = get_user_directories(user_id)
-        if not os.path.exists(dirs['documents']) or not os.listdir(dirs['documents']):
-            print("No documents found for user, skipping document retrieval")
+    try:
+        # Get retriever
+        retriever = get_retriever(user_id)
+        if retriever is None:
+            print("No retriever available, skipping document retrieval")
             return []
-    
-    # Only initialize vector store if we have documents
-    retriever = get_retriever(user_id)
-    if retriever is None:
-        return []
+            
+        # Get documents
+        docs = retriever.invoke(query)
         
-    docs = retriever.invoke(query)
-    return [doc.page_content for doc in docs]
+        # Print retrieved documents
+        print("\n📄 Retrieved Documents:")
+        for i, doc in enumerate(docs, 1):
+            print(f"\nDocument {i}:")
+            print("-" * 50)
+            print(doc.page_content)
+            print("-" * 50)
+        
+        # Extract content from documents
+        return [doc.page_content for doc in docs]
+        
+    except Exception as e:
+        print(f"Error retrieving documents: {str(e)}")
+        print(f"Error type: {type(e)}")
+        import traceback
+        print(f"Traceback: {traceback.format_exc()}")
+        return []
 
 
 def get_thread_history(user_id: str, thread_id: str) -> str:
@@ -417,7 +515,7 @@ def store_escalation(email_data: Dict[str, Any]) -> bool:
     return True
 
 
-def send_email_reply(to_email: str, subject: str, body: str, message_id: str, thread_id: str, user_id: str = None) -> bool:
+def send_email_reply(to_email: str, subject: str, body: str, message_id: str, thread_id: str, user_id: str = None, signature: str = None) -> bool:
     """
     Send an email reply.
     Args:
@@ -427,6 +525,7 @@ def send_email_reply(to_email: str, subject: str, body: str, message_id: str, th
         message_id: Original message ID to reply to
         thread_id: Thread ID
         user_id: The ID of the user whose email configuration to use
+        signature: Optional custom signature to use
     Returns:
         True if successful, False otherwise
     """
@@ -441,7 +540,12 @@ def send_email_reply(to_email: str, subject: str, body: str, message_id: str, th
         return False
         
     email_config = user.outgoing_email_config
-    signature = "\n\nAI-AGENT\nHR Department\n" + email_config['email']
+    
+    # Use custom signature if provided, otherwise use default
+    if signature:
+        signature_text = f"\n\n{signature}"
+    else:
+        signature_text = f"\n\nAI-AGENT\nHR Department\n{email_config['email']}"
     
     # Remove existing signature if present
     signature_patterns = [
@@ -452,7 +556,7 @@ def send_email_reply(to_email: str, subject: str, body: str, message_id: str, th
     for pattern in signature_patterns:
         cleaned_body = re.sub(pattern, '', cleaned_body, flags=re.DOTALL | re.IGNORECASE)
     
-    final_body = cleaned_body.strip() + signature
+    final_body = cleaned_body.strip() + signature_text
 
     msg = EmailMessage()
     msg["Subject"] = "Re: " + subject if not subject.startswith("Re: ") else subject
@@ -561,18 +665,28 @@ def fetch_emails(email: str, password: bytes, server: str = "imap.gmail.com", st
     Returns:
         List of dictionaries containing email data
     """
+    import time
+    start_time = time.time()
+    print(f"🕒 Starting email fetch process at {time.strftime('%H:%M:%S')}")
+    
     print(f"Attempting to connect to {server}...")
+    connect_start = time.time()
     mail = imaplib.IMAP4_SSL(server)
+    print(f"✅ Connected to server in {time.time() - connect_start:.2f} seconds")
     
     print(f"Attempting to login with email: {email}")
+    login_start = time.time()
     try:
         mail.login(email, password.decode())  # Decode bytes to string for login
+        print(f"✅ Login successful in {time.time() - login_start:.2f} seconds")
     except Exception as e:
-        print(f"Login failed: {str(e)}")
+        print(f"❌ Login failed: {str(e)}")
         raise
     
     print("Selecting inbox...")
+    select_start = time.time()
     mail.select("inbox")
+    print(f"✅ Inbox selected in {time.time() - select_start:.2f} seconds")
     
     # Construct search criteria
     search_criteria = '(UNSEEN)'
@@ -580,23 +694,28 @@ def fetch_emails(email: str, password: bytes, server: str = "imap.gmail.com", st
         search_criteria = f'(UNSEEN SINCE "{start_date}")'
     
     print(f"Searching for unread messages {f'after {start_date}' if start_date else ''}...")
+    search_start = time.time()
     status, messages = mail.search(None, search_criteria)
     if status != 'OK':
-        print(f"Search failed with status: {status}")
+        print(f"❌ Search failed with status: {status}")
         return []
-        
+    
     message_count = len(messages[0].split())
-    print(f"Found {message_count} unread messages")
+    print(f"✅ Found {message_count} unread messages in {time.time() - search_start:.2f} seconds")
     if message_count > 100:
-        print("Warning: Large number of unread messages found. Consider using a more recent start_date.")
+        print("⚠️ Warning: Large number of unread messages found. Consider using a more recent start_date.")
     
     email_data = []
+    fetch_start = time.time()
+    total_messages = message_count
+    processed_messages = 0
 
     for num in messages[0].split():
-        print(f"Fetching message {num}...")
+        message_start = time.time()
+        print(f"📧 Processing message {processed_messages + 1}/{total_messages}...")
         status, msg_data = mail.fetch(num, "(RFC822)")
         if status != 'OK':
-            print(f"Failed to fetch message {num}")
+            print(f"❌ Failed to fetch message {num}")
             continue
             
         for response_part in msg_data:
@@ -615,22 +734,18 @@ def fetch_emails(email: str, password: bytes, server: str = "imap.gmail.com", st
                         for part in msg.walk():
                             if part.get_content_type() == "text/plain":
                                 try:
-                                    # Try to get the charset from the part
                                     charset = part.get_content_charset() or 'utf-8'
                                     body = part.get_payload(decode=True).decode(charset, errors='replace')
                                 except Exception as e:
-                                    print(f"Error decoding part: {e}")
-                                    # If decoding fails, try with latin-1 which can handle any byte sequence
+                                    print(f"⚠️ Error decoding part: {e}")
                                     body = part.get_payload(decode=True).decode('latin-1', errors='replace')
                                 break
                     else:
                         try:
-                            # Try to get the charset from the message
                             charset = msg.get_content_charset() or 'utf-8'
                             body = msg.get_payload(decode=True).decode(charset, errors='replace')
                         except Exception as e:
-                            print(f"Error decoding message: {e}")
-                            # If decoding fails, try with latin-1 which can handle any byte sequence
+                            print(f"⚠️ Error decoding message: {e}")
                             body = msg.get_payload(decode=True).decode('latin-1', errors='replace')
 
                     email_data.append({
@@ -641,15 +756,23 @@ def fetch_emails(email: str, password: bytes, server: str = "imap.gmail.com", st
                         "in_reply_to": in_reply_to,
                         "references": references
                     })
-                    print(f"Successfully processed message {num}")
+                    processed_messages += 1
+                    print(f"✅ Message {processed_messages}/{total_messages} processed in {time.time() - message_start:.2f} seconds")
                 except Exception as e:
-                    print(f"Error processing message {num}: {str(e)}")
+                    print(f"❌ Error processing message {num}: {str(e)}")
                     continue
                     
         print(f"Marking message {num} as read...")
         mail.store(num, '+FLAGS', '\\Seen')  # mark as read
         
+    print(f"✅ Processed {processed_messages} messages in {time.time() - fetch_start:.2f} seconds")
     print("Logging out...")
     mail.logout()
-    print(f"Returning {len(email_data)} processed messages")
+    
+    total_time = time.time() - start_time
+    print(f"📊 Email fetch summary:")
+    print(f"   - Total time: {total_time:.2f} seconds")
+    print(f"   - Messages processed: {processed_messages}/{total_messages}")
+    print(f"   - Average time per message: {total_time/processed_messages if processed_messages > 0 else 0:.2f} seconds")
+    
     return email_data

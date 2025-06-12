@@ -19,10 +19,13 @@
         <ul class="navbar-nav me-auto">
           {% if current_user.is_authenticated %}
           <li class="nav-item">
-            <a class="nav-link" href="{{ url_for('template_manager') }}">Templates</a>
+            <a class="nav-link" href="{{ url_for('search_page') }}">Search</a>
           </li>
           <li class="nav-item">
-            <a class="nav-link" href="{{ url_for('search_page') }}">Search Emails</a>
+            <a class="nav-link" href="{{ url_for('dashboard') }}">Dashboard</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="{{ url_for('template_manager') }}">Templates</a>
           </li>
           <li class="nav-item">
             <a class="nav-link" href="{{ url_for('email_config') }}">Email Settings</a>

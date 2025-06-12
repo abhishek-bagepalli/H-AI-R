@@ -1,6 +1,6 @@
 import os
 import json
-from flask import Flask, render_template, request, redirect, url_for, flash
+from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 from dotenv import load_dotenv
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -9,12 +9,34 @@ from firebase_config import db
 from hr_main import main as process_inbox
 from hr_tools import send_email_reply, fetch_emails
 from auth import User
-from document_manager import DocumentManager
+from datetime import datetime, timedelta
+from collections import Counter, defaultdict
+from google.cloud import firestore
+import re
+from document_storage import DocumentStorage
+
+# Load environment variables
 load_dotenv()
 
-# Flask app initialization
+# Initialize Flask app
 app = Flask(__name__)
-app.secret_key = os.getenv("SECRET_KEY", "qwertypeepee")
+app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'your-secret-key')
+app.config['DEBUG'] = True
+
+# Configure Flask to ignore system files
+app.config['TEMPLATES_AUTO_RELOAD'] = True
+app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0
+
+# Configure the reloader to ignore system files
+extra_files = []
+ignored_files = [
+    r'C:\\Users\\dell\\anaconda3\\envs\\etb_final_project\\Lib\\*.py',
+    r'C:\\Users\\dell\\Documents\\Purdue\\Spring_25\\full_semester\\ETB\\Archive (2)\\gcloud\\google-cloud-sdk\\lib\\*.py'
+]
+
+if app.debug:
+    from werkzeug._reloader import _iter_module_paths
+    extra_files = [f for f in _iter_module_paths() if not any(re.match(pattern, f) for pattern in ignored_files)]
 
 # Flask-Login setup
 login_manager = LoginManager()
@@ -101,6 +123,7 @@ def search_page():
     query = request.args.get("query", "").strip()
     classification_filter = request.args.get("classification", "").strip()
     status_filter = request.args.get("status", "").strip()
+    show_all = request.args.get("show_all", "").strip() == "true"
     templates = load_templates()
     results = []
 
@@ -111,8 +134,8 @@ def search_page():
         filters.append(f"status:'{status_filter}'")
     filter_string = " AND ".join(filters)
 
-    # Only search if something is provided
-    should_run_search = any([query, classification_filter, status_filter])
+    # Only search if something is provided or show_all is true
+    should_run_search = any([query, classification_filter, status_filter, show_all])
 
     if should_run_search:
         print(f"🔍 Searching for: {query or '[no query]'}")
@@ -120,19 +143,20 @@ def search_page():
             # Search in user's email history
             email_history_ref = db.collection('users').document(current_user.id).collection("email_history")
             
-            # Apply filters
-            if classification_filter:
-                email_history_ref = email_history_ref.where("classification", "==", classification_filter)
-            if status_filter:
-                email_history_ref = email_history_ref.where("status", "==", status_filter)
+            # Apply filters only if not showing all
+            if not show_all:
+                if classification_filter:
+                    email_history_ref = email_history_ref.where("classification", "==", classification_filter)
+                if status_filter:
+                    email_history_ref = email_history_ref.where("status", "==", status_filter)
             
             # Get all matching documents
             docs = email_history_ref.stream()
             
-            # Filter by query if provided
+            # Filter by query if provided and not showing all
             for doc in docs:
                 data = doc.to_dict()
-                if not query or query.lower() in data.get("subject", "").lower() or query.lower() in data.get("body", "").lower():
+                if show_all or not query or query.lower() in data.get("subject", "").lower() or query.lower() in data.get("body", "").lower():
                     results.append({
                         "objectID": doc.id,
                         "sender": data.get("sender", ""),
@@ -279,6 +303,7 @@ def send_reply():
     subject = request.form.get("subject")
     thread_id = request.form.get("thread_id")
     reply_body = request.form.get("reply_body")
+    custom_signature = request.form.get("signature", "").strip()
 
     print(f"🔄 Sending reply to {to_email} with subject '{subject}'")
 
@@ -289,11 +314,13 @@ def send_reply():
             subject=subject,
             body=reply_body,
             message_id=thread_id,
-            thread_id=thread_id
+            thread_id=thread_id,
+            user_id=current_user.id,
+            signature=custom_signature
         )
 
         if reply_status:
-            flash("Reply sent successfully.", "success")
+            flash("Reply sent successfully!", "success")
         else:
             flash("Failed to send reply.", "error")
 
@@ -351,32 +378,35 @@ def signup():
             
             default_templates = {
                 "leave_request": {
-                    "greeting": "Dear {name},",
-                    "acknowledgement": "Thank you for your leave request.",
-                    "info": "Your request for {number_of_days} days of leave has been {approved/denied}.",
-                    "next_steps": "Please ensure to complete your handover before your leave.",
-                    "closing": "Best regards,"
+                    "greeting": "Hi {employee_name},",
+                    "acknowledgement": "Thank you for submitting your leave request for {leave_dates}.",
+                    "decision": "Your request for {number_of_days} days of casual leave has been {approved/denied} based on our leave policy.",
+                    "policy_reminder": "As per our HR policy, employees are eligible for up to 3 casual leave days per calendar year.",
+                    "instructions": "Please ensure your responsibilities are appropriately handed over before your leave.",
+                    "closing": "If you have any questions or need further assistance, feel free to reach out.\n\nRegards,\nHR Department"
                 },
                 "job_inquiry": {
-                    "greeting": "Dear {name},",
-                    "acknowledgement": "Thank you for your interest in our company.",
-                    "info": "We have received your application for the {position} position.",
-                    "next_steps": "Our team will review your application and get back to you within 5 business days.",
-                    "closing": "Best regards,"
+                    "greeting": "Hello {applicant_name},",
+                    "acknowledgement": "Thank you for your interest in career opportunities at {company_name}.",
+                    "info": "Currently, we have openings for the following roles: {list_of_open_roles}.",
+                    "next_steps": "We encourage you to apply via our Careers Portal at {careers_portal_link}.",
+                    "instructions": "After submitting your application, our Talent Acquisition team will review it and get back to you shortly.",
+                    "closing": "We appreciate your enthusiasm and wish you the best in your job search.\n\nBest regards,\nHR Team"
                 },
                 "onboarding": {
-                    "greeting": "Dear {name},",
-                    "acknowledgement": "Welcome to our team!",
-                    "info": "We are excited to have you join us as {position}.",
-                    "next_steps": "Please complete the onboarding documents attached and bring your ID documents on your first day.",
-                    "closing": "Best regards,"
+                    "greeting": "Hi {new_employee_name},",
+                    "welcome": "Welcome to {company_name}! We are excited to have you onboard.",
+                    "instructions": "Please complete the onboarding documents provided and submit them by {submission_deadline}.",
+                    "next_steps": "You will also receive an invite for the orientation session scheduled for {orientation_date}.",
+                    "support": "If you have any questions or need help, please contact {hr_contact_name} at {hr_contact_email}.",
+                    "closing": "Looking forward to a great journey together!\n\nWarm regards,\nHR Department"
                 },
                 "escalation": {
-                    "greeting": "Dear {name},",
-                    "acknowledgement": "Thank you for your email.",
-                    "info": "Your request requires additional attention and has been escalated to our team.",
-                    "next_steps": "A team member will review your case and get back to you shortly.",
-                    "closing": "Best regards,"
+                    "greeting": "Hi {employee_name},",
+                    "acknowledgement": "Thank you for reaching out.",
+                    "info": "Your query requires further review by our HR leadership team.",
+                    "next_steps": "We have escalated your request and you will hear back from us shortly.",
+                    "closing": "We appreciate your patience.\n\nRegards,\nHR Department"
                 }
             }
             
@@ -411,37 +441,43 @@ def email_config():
         config_type = request.form.get('config_type')
         
         if config_type == 'documents':
-            # Initialize document manager
-            doc_manager = DocumentManager(current_user.id)
+            # Initialize document storage
+            doc_storage = DocumentStorage(current_user.id)
             
-            # Get all template categories
-            templates = load_templates()
-            upload_success = True
+            # Get the category being saved
+            save_category = request.form.get('save_category')
+            if not save_category:
+                flash('No category specified for document upload', 'error')
+                return redirect(url_for('email_config', tab='documents'))
             
-            # Handle document uploads for each category
-            for category in templates.keys():
-                if category not in request.files:
-                    continue  # Skip if no file provided for this category
+            # Check if a file was uploaded for this category
+            if save_category not in request.files:
+                flash(f'No file selected for {save_category.replace("_", " ").title()}', 'error')
+                return redirect(url_for('email_config', tab='documents'))
+                
+            file = request.files[save_category]
+            if file.filename == '':
+                flash(f'No file selected for {save_category.replace("_", " ").title()}', 'error')
+                return redirect(url_for('email_config', tab='documents'))
+                
+            try:
+                # Validate file type
+                if not file.filename.lower().endswith('.pdf'):
+                    flash(f"Only PDF files are supported for {save_category.replace('_', ' ').title()}", "danger")
+                    return redirect(url_for('email_config', tab='documents'))
                     
-                file = request.files[category]
-                if file.filename == '':
-                    continue  # Skip if no file selected
-                    
-                try:
-                    # Read file content as bytes
-                    file_content = file.read()
-                    if not doc_manager.upload_document(file_content, file.filename):
-                        flash(f"Error uploading document for {category.replace('_', ' ').title()}", "danger")
-                        upload_success = False
-                except Exception as e:
-                    flash(f"Error processing document for {category.replace('_', ' ').title()}: {str(e)}", "danger")
-                    upload_success = False
+                # Read file content as bytes
+                file_content = file.read()
+                
+                # Process and store document
+                result = doc_storage.process_and_store_document(file_content, file.filename, save_category)
+                print(f"✅ Document processed for {save_category}: {result['filename']}")
+                flash(f'Document uploaded successfully for {save_category.replace("_", " ").title()}', 'success')
+                
+            except Exception as e:
+                print(f"❌ Error processing document for {save_category}: {str(e)}")
+                flash(f"Error processing document for {save_category.replace('_', ' ').title()}: {str(e)}", "danger")
             
-            if upload_success:
-                # Mark email configuration as complete
-                current_user.update_email_config('complete', {'is_complete': True})
-                flash("Configuration completed successfully!", "success")
-                return redirect(url_for('home'))
             return redirect(url_for('email_config', tab='documents'))
             
         elif config_type == 'escalation':
@@ -511,91 +547,26 @@ def email_config():
     # Load templates for the documents tab
     templates = load_templates()
     
+    # Get list of uploaded documents
+    doc_storage = DocumentStorage(current_user.id)
+    docs_ref = db.collection('users').document(current_user.id).collection('documents')
+    documents = []
+    for doc in docs_ref.stream():
+        data = doc.to_dict()
+        documents.append({
+            'filename': data.get('filename', ''),
+            'upload_date': data.get('created_at', ''),
+            'document_id': doc.id,
+            'category': data.get('category', '')
+        })
+    
     return render_template('email_config.html', 
                          templates=templates, 
                          current_tab=current_tab,
                          incoming_config=user_data.get('email_config_incoming', {}),
                          outgoing_config=user_data.get('email_config_outgoing', {}),
-                         escalation_email=user_data.get('escalation_email', ''))
-
-@app.route('/documents', methods=['GET'])
-@login_required
-def document_list():
-    if not current_user.has_complete_email_config():
-        flash("Please configure your email settings to continue.", "warning")
-        return redirect(url_for('email_config'))
-        
-    doc_manager = DocumentManager(current_user.id)
-    documents = doc_manager.list_documents()
-    return render_template('documents.html', documents=documents)
-
-@app.route('/documents/upload', methods=['POST'])
-@login_required
-def upload_document():
-    if not current_user.has_complete_email_config():
-        flash("Please configure your email settings to continue.", "warning")
-        return redirect(url_for('email_config'))
-        
-    if 'document' not in request.files:
-        flash('No file selected', 'error')
-        return redirect(url_for('document_list'))
-        
-    file = request.files['document']
-    if file.filename == '':
-        flash('No file selected', 'error')
-        return redirect(url_for('document_list'))
-        
-    if file:
-        try:
-            content = file.read().decode('utf-8')
-            doc_manager = DocumentManager(current_user.id)
-            if doc_manager.upload_document(content, file.filename):
-                flash('Document uploaded successfully', 'success')
-            else:
-                flash('Error uploading document', 'error')
-        except Exception as e:
-            flash(f'Error processing file: {str(e)}', 'error')
-            
-    return redirect(url_for('document_list'))
-
-@app.route('/documents/delete/<filename>', methods=['POST'])
-@login_required
-def delete_document(filename):
-    if not current_user.has_complete_email_config():
-        flash("Please configure your email settings to continue.", "warning")
-        return redirect(url_for('email_config'))
-        
-    doc_manager = DocumentManager(current_user.id)
-    if doc_manager.delete_document(filename):
-        flash('Document deleted successfully', 'success')
-    else:
-        flash('Error deleting document', 'error')
-        
-    return redirect(url_for('document_list'))
-
-@app.route('/documents/edit/<filename>', methods=['GET', 'POST'])
-@login_required
-def edit_document(filename):
-    if not current_user.has_complete_email_config():
-        flash("Please configure your email settings to continue.", "warning")
-        return redirect(url_for('email_config'))
-        
-    doc_manager = DocumentManager(current_user.id)
-    
-    if request.method == 'POST':
-        content = request.form.get('content')
-        if doc_manager.update_document(filename, content):
-            flash('Document updated successfully', 'success')
-            return redirect(url_for('document_list'))
-        else:
-            flash('Error updating document', 'error')
-            
-    content = doc_manager.get_document_content(filename)
-    if content is None:
-        flash('Document not found', 'error')
-        return redirect(url_for('document_list'))
-        
-    return render_template('edit_document.html', filename=filename, content=content)
+                         escalation_email=user_data.get('escalation_email', ''),
+                         documents=documents)
 
 # Initialize scheduler
 scheduler = BackgroundScheduler()
@@ -604,6 +575,138 @@ scheduler.start()
 
 import atexit
 atexit.register(lambda: scheduler.shutdown())
+
+def calculate_email_metrics(user_id: str) -> dict:
+    """
+    Calculate various email metrics for the dashboard.
+    """
+    # Get all emails from the last 3 days
+    three_days_ago = datetime.now() - timedelta(days=3)
+    
+    # Query emails from Firestore
+    emails_ref = db.collection('users').document(user_id).collection("email_history")
+    emails = emails_ref.stream()
+    
+    # Initialize metrics
+    metrics = {
+        'total_emails': 0,
+        'daily_emails': defaultdict(int),
+        'category_counts': defaultdict(int),
+        'status_counts': defaultdict(int),
+        'successful_replies': 0,
+        'escalated_cases': 0,
+        'sender_counts': Counter(),
+        'avg_response_time': 0,
+        'total_response_time': 0,
+        'response_count': 0
+    }
+    
+    # Process each email
+    for email in emails:
+        email_data = email.to_dict()
+        timestamp = email_data.get('timestamp')
+        
+        # Skip if no timestamp
+        if not timestamp:
+            continue
+            
+        # Convert Firestore timestamp to datetime
+        email_date = timestamp.replace(tzinfo=None)
+        
+        # Only include emails from last 3 days
+        if email_date < three_days_ago:
+            continue
+            
+        metrics['total_emails'] += 1
+        metrics['daily_emails'][email_date.strftime('%Y-%m-%d')] += 1
+        
+        # Category metrics
+        category = email_data.get('classification', 'unknown')
+        metrics['category_counts'][category] += 1
+        
+        # Status metrics
+        status = email_data.get('status', 'new')
+        metrics['status_counts'][status] += 1
+        
+        # Reply metrics
+        if email_data.get('reply_status'):
+            metrics['successful_replies'] += 1
+            
+        # Escalation metrics
+        if category == 'escalate':
+            metrics['escalated_cases'] += 1
+            
+        # Sender metrics
+        sender = email_data.get('sender', 'unknown')
+        metrics['sender_counts'][sender] += 1
+        
+        # Response time metrics
+        if email_data.get('response'):
+            metrics['response_count'] += 1
+            # Add to total response time (placeholder for now)
+            metrics['total_response_time'] += 1
+    
+    # Calculate averages and percentages
+    if metrics['response_count'] > 0:
+        metrics['avg_response_time'] = metrics['total_response_time'] / metrics['response_count']
+    
+    # Calculate percentages
+    total = metrics['total_emails']
+    if total > 0:
+        metrics['category_percentages'] = {
+            category: (count / total) * 100 
+            for category, count in metrics['category_counts'].items()
+        }
+        metrics['status_percentages'] = {
+            status: (count / total) * 100 
+            for status, count in metrics['status_counts'].items()
+        }
+        metrics['reply_success_rate'] = (metrics['successful_replies'] / total) * 100
+    else:
+        metrics['category_percentages'] = {}
+        metrics['status_percentages'] = {}
+        metrics['reply_success_rate'] = 0
+    
+    # Convert daily_emails to sorted list
+    metrics['daily_emails'] = [
+        {'date': date, 'count': count}
+        for date, count in sorted(metrics['daily_emails'].items())
+    ]
+    
+    # Get top 5 senders
+    metrics['top_senders'] = metrics['sender_counts'].most_common(5)
+    
+    return metrics
+
+@app.route("/dashboard", methods=["GET"])
+@login_required
+def dashboard():
+    if not current_user.has_complete_email_config():
+        flash("Please configure your email settings to continue.", "warning")
+        return redirect(url_for('email_config'))
+        
+    metrics = calculate_email_metrics(current_user.id)
+    return render_template("dashboard.html", metrics=metrics)
+
+# Add delete document route
+@app.route('/documents/delete/<document_id>', methods=['POST'])
+@login_required
+def delete_document(document_id):
+    if not current_user.has_complete_email_config():
+        flash("Please configure your email settings to continue.", "warning")
+        return redirect(url_for('email_config'))
+        
+    try:
+        # Initialize document storage
+        doc_storage = DocumentStorage(current_user.id)
+        
+        # Delete document
+        doc_storage.delete_document(document_id)
+        flash('Document deleted successfully', 'success')
+    except Exception as e:
+        flash(f'Error deleting document: {str(e)}', 'error')
+        
+    return redirect(url_for('email_config', tab='documents'))
 
 if __name__ == '__main__':
     app.run(debug=True)

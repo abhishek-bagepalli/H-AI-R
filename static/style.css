@@ -376,7 +376,13 @@ hr {
 }
 
 .filter-buttons {
+  /* border: 1px solid red; */
   margin-top: 10px;
+  display: flex;
+  flex-direction: row;
+  justify-content: flex-start;
+  align-items: center;
+  gap: 1vw;
 }
 
 .btn-primary {
@@ -406,7 +412,6 @@ hr {
 }
 
 .btn-secondary {
-  margin-left: 10px;
   background: #ccc;
   padding: 6px 12px;
   text-decoration: none;

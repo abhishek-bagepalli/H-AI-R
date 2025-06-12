@@ -65,6 +65,7 @@
             <div class="filter-buttons">
                 <button type="submit" class="btn btn-primary">Search</button>
                 <a href="/search" class="btn btn-secondary">Clear Filters</a>
+                <a href="/search?show_all=true" class="btn btn-info">Show All</a>
             </div>
         </form>
     </div>
@@ -86,6 +87,15 @@
                         <strong>Body:</strong>
                         <div class="email-body">{{ email.body }}</div>
                     </div>
+
+                    {% if email.response %}
+                    <div class="mb-3">
+                        <strong>System Response:</strong>
+                        <div class="email-response" style="background-color: #f8f9fa; padding: 15px; border-radius: 5px; margin-top: 5px;">
+                            {{ email.response }}
+                        </div>
+                    </div>
+                    {% endif %}
 
                     <div class="row mb-3">
                         <div class="col-md-6">
@@ -124,6 +134,9 @@
                     <div class="mb-3">
                         <textarea name="reply_body" class="form-control" rows="4" placeholder="Type your custom reply here..." required></textarea>
                     </div>
+                    <div class="mb-3">
+                        <textarea name="signature" class="form-control" rows="2" placeholder="Add your signature (optional)"></textarea>
+                    </div>
                     <button type="submit" class="btn btn-primary">Send Reply</button>
                 </form>
             </div>
@@ -132,19 +145,36 @@
     </div>
     {% endif %}
 </div>
-{% endblock %}
 
+<!-- Flash Messages -->
 {% with messages = get_flashed_messages(with_categories=true) %}
-  {% if messages %}
-    <div class="flash-messages">
-      {% for category, message in messages %}
-        <div class="flash flash-{{ category }}">
-          <span>{{ message }}</span>
-          <button class="close-btn" onclick="this.parentElement.style.display='none';">&times;</button>
+    {% if messages %}
+        <div class="flash-messages" style="position: fixed; top: 20px; right: 20px; z-index: 1000; min-width: 300px;">
+            {% for category, message in messages %}
+                <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert" 
+                     style="box-shadow: 0 4px 8px rgba(0,0,0,0.1); margin-bottom: 10px; border: none; border-radius: 8px;">
+                    <div style="display: flex; align-items: center; justify-content: space-between;">
+                        <div style="flex-grow: 1; margin-right: 10px;">
+                            {% if category == 'success' %}
+                                <i class="fas fa-check-circle" style="color: #28a745; margin-right: 8px;"></i>
+                            {% elif category == 'error' %}
+                                <i class="fas fa-exclamation-circle" style="color: #dc3545; margin-right: 8px;"></i>
+                            {% elif category == 'warning' %}
+                                <i class="fas fa-exclamation-triangle" style="color: #ffc107; margin-right: 8px;"></i>
+                            {% endif %}
+                            <strong>{{ message }}</strong>
+                        </div>
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close" 
+                                style="background: none; border: none; font-size: 1.2rem; opacity: 0.5; cursor: pointer;">
+                            &times;
+                        </button>
+                    </div>
+                </div>
+            {% endfor %}
         </div>
-      {% endfor %}
-    </div>
-  {% endif %}
+    {% endif %}
 {% endwith %}
+
+{% endblock %}
 
 </html>
